@@ -1,0 +1,630 @@
+{% extends "base.html" %}
+
+{% block title %}Make Reservation - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Make a Reservation</h2>
+            <p class="text-muted">Reserve your parking slot in advance</p>
+        </div>
+    </div>
+
+    {% if success_message %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i> {{ success_message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+
+    {% if error_message %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i> {{ error_message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Available Parking Slots</h5>
+                    <div>
+                        <select id="slotFilter" class="form-select form-select-sm">
+                            <option value="all">All Slots</option>
+                            <option value="Regular">Regular Slots</option>
+                            <option value="Electric">Electric Slots</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="parking-map mb-3">
+                        <div class="row g-2" id="parking-slots-container">
+                            {% if available_slots %}
+                                {% for slot in available_slots %}
+                                    <div class="col-md-3 col-sm-4 col-6 slot-item" data-type="{{ slot.slot_type }}">
+                                        <div class="parking-slot parking-slot-{{ slot.slot_type|lower }} {% if current_user.vehicle_type != 'Electric' and slot.slot_type == 'Electric' %}disabled{% endif %}" 
+                                             data-id="{{ slot.id }}" data-number="{{ slot.slot_number }}" data-type="{{ slot.slot_type }}">
+                                            <div class="slot-number">{{ slot.slot_number }}</div>
+                                            <div class="slot-type">{{ slot.slot_type }}</div>
+                                            {% if slot.slot_type == 'Electric' %}
+                                                <div class="slot-icon"><i class="fas fa-charging-station"></i></div>
+                                            {% else %}
+                                                <div class="slot-icon"><i class="fas fa-car"></i></div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="col-12">
+                                    <div class="alert alert-info mb-0">
+                                        <i class="fas fa-info-circle me-2"></i> No parking slots are available at this time.
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="legend">
+                            <span class="legend-item"><span class="legend-color legend-regular"></span> Regular</span>
+                            <span class="legend-item"><span class="legend-color legend-electric"></span> Electric</span>
+                            <span class="legend-item"><span class="legend-color legend-selected"></span> Selected</span>
+                        </div>
+                        <button id="refreshSlots" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <form method="POST" action="{{ url_for('make_reservation') }}" id="reservationForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Reservation Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="slot_id" class="form-label">Selected Slot</label>
+                            <input type="text" class="form-control" id="selected_slot_display" placeholder="Select a slot from the map" readonly>
+                            <input type="hidden" name="slot_id" id="slot_id" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="reservation_date" class="form-label">Reservation Date</label>
+                            <input type="date" class="form-control" id="reservation_date" name="reservation_date" required min="{{ today }}">
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="start_time" class="form-label">Start Time</label>
+                                <input type="time" class="form-control" id="start_time" name="start_time" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="end_time" class="form-label">End Time</label>
+                                <input type="time" class="form-control" id="end_time" name="end_time" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Duration</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="duration_hours" placeholder="Hours" min="1" max="24" readonly>
+                                <input type="number" class="form-control" id="duration_minutes" placeholder="Minutes" min="0" max="59" readonly>
+                                <span class="input-group-text">Hours:Minutes</span>
+                            </div>
+                            <div class="form-text">Min duration: 1 hour. Max: {{ max_duration|default(24) }} hours.</div>
+                        </div>
+                        
+                        <div class="alert alert-info mb-3" id="pricing-info" style="display: none;">
+                            <div class="d-flex justify-content-between">
+                                <span>Base Rate:</span>
+                                <span id="base-rate">$0.00</span>
+                            </div>
+                            <div class="d-flex justify-content-between" id="surcharge-row" style="display: none;">
+                                <span>Surcharge (Electric):</span>
+                                <span id="surcharge">$0.00</span>
+                            </div>
+                            <hr class="my-1">
+                            <div class="d-flex justify-content-between fw-bold">
+                                <span>Total:</span>
+                                <span id="total-price">$0.00</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="terms_accepted" id="terms_accepted" required>
+                                <label class="form-check-label" for="terms_accepted">
+                                    I accept the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">terms and conditions</a>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-primary w-100" id="reserveButton" disabled>Reserve Slot</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Conflicting Reservations Alert -->
+    <div class="row mt-3" id="conflicts-container" style="display:none;">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i> Conflicting Reservations</h5>
+                <p>The following reservations conflict with your selected time:</p>
+                <ul id="conflicts-list"></ul>
+                <p>Please choose a different time or parking slot.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Terms and Conditions Modal -->
+<div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="termsModalLabel">Terms and Conditions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Reservation Terms</h6>
+                <ol>
+                    <li>Reservations must be made at least 30 minutes in advance.</li>
+                    <li>Cancellation is allowed up to 2 hours before the reservation start time.</li>
+                    <li>Late cancellations may incur a fee of 50% of the reservation cost.</li>
+                    <li>Users are expected to arrive within 15 minutes of their reservation start time.</li>
+                    <li>Electric vehicle slots are reserved for electric vehicles only.</li>
+                </ol>
+                
+                <h6>Payment Terms</h6>
+                <ol>
+                    <li>Payment is processed at the time of reservation.</li>
+                    <li>Refunds for cancellations will be processed within 3-5 business days.</li>
+                    <li>Additional fees may apply for extending reservations beyond the scheduled end time.</li>
+                </ol>
+                
+                <h6>Usage Policy</h6>
+                <ol>
+                    <li>Users must park only in their assigned slot.</li>
+                    <li>The parking facility is not responsible for any damage or theft.</li>
+                    <li>Violation of parking rules may result in additional fees or account suspension.</li>
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" id="acceptTerms">Accept Terms</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .parking-map {
+        margin-bottom: 20px;
+    }
+    
+    .parking-slot {
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px 10px;
+        text-align: center;
+        height: 100%;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        margin-bottom: 10px;
+    }
+    
+    .parking-slot:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .parking-slot.selected {
+        border-color: #ffc107;
+        background-color: #fff8e1;
+        transform: translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .parking-slot.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .parking-slot-regular {
+        background-color: #f8f9fa;
+    }
+    
+    .parking-slot-electric {
+        background-color: #e8f5e9;
+    }
+    
+    .slot-number {
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .slot-type {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .slot-icon {
+        margin-top: 5px;
+    }
+    
+    .parking-slot-electric .slot-icon {
+        color: #28a745;
+    }
+    
+    .legend {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-right: 15px;
+        font-size: 0.9rem;
+    }
+    
+    .legend-color {
+        width: 15px;
+        height: 15px;
+        margin-right: 5px;
+        border-radius: 3px;
+    }
+    
+    .legend-regular {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+    }
+    
+    .legend-electric {
+        background-color: #e8f5e9;
+        border: 1px solid #dee2e6;
+    }
+    
+    .legend-selected {
+        background-color: #fff8e1;
+        border: 1px solid #ffc107;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Variables for form validation
+        const slotIdField = document.getElementById('slot_id');
+        const slotDisplayField = document.getElementById('selected_slot_display');
+        const reservationDateField = document.getElementById('reservation_date');
+        const startTimeField = document.getElementById('start_time');
+        const endTimeField = document.getElementById('end_time');
+        const durationHoursField = document.getElementById('duration_hours');
+        const durationMinutesField = document.getElementById('duration_minutes');
+        const termsCheckbox = document.getElementById('terms_accepted');
+        const reserveButton = document.getElementById('reserveButton');
+        const slotFilter = document.getElementById('slotFilter');
+        const refreshButton = document.getElementById('refreshSlots');
+        
+        // Set minimum date to today
+        const today = new Date().toISOString().split('T')[0];
+        reservationDateField.min = today;
+        reservationDateField.value = today;
+        
+        // Set default times
+        const now = new Date();
+        const roundedUpHour = new Date(Math.ceil(now.getTime() / (60*60*1000)) * (60*60*1000));
+        startTimeField.value = formatTime(roundedUpHour);
+        
+        const endDefault = new Date(roundedUpHour);
+        endDefault.setHours(endDefault.getHours() + 1);
+        endTimeField.value = formatTime(endDefault);
+        
+        // Format time for input fields
+        function formatTime(date) {
+            return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+        
+        // Parking slot selection
+        document.querySelectorAll('.parking-slot').forEach(slot => {
+            if (!slot.classList.contains('disabled')) {
+                slot.addEventListener('click', function() {
+                    // Deselect all slots
+                    document.querySelectorAll('.parking-slot').forEach(s => s.classList.remove('selected'));
+                    
+                    // Select this slot
+                    this.classList.add('selected');
+                    
+                    // Update form fields
+                    const slotId = this.getAttribute('data-id');
+                    const slotNumber = this.getAttribute('data-number');
+                    const slotType = this.getAttribute('data-type');
+                    
+                    slotIdField.value = slotId;
+                    slotDisplayField.value = `Slot ${slotNumber} (${slotType})`;
+                    
+                    // Update surcharge for electric slots
+                    updatePricing();
+                    
+                    // Check for conflicting reservations
+                    checkConflicts();
+                    
+                    // Validate form
+                    validateForm();
+                });
+            }
+        });
+        
+        // Filter slots by type
+        slotFilter.addEventListener('change', function() {
+            const filterValue = this.value;
+            const slotItems = document.querySelectorAll('.slot-item');
+            
+            slotItems.forEach(item => {
+                const slotType = item.getAttribute('data-type');
+                
+                if (filterValue === 'all' || slotType === filterValue) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+        
+        // Refresh available slots
+        refreshButton.addEventListener('click', function() {
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Refreshing...';
+            
+            fetch('/api/slots/available')
+                .then(response => response.json())
+                .then(data => {
+                    updateAvailableSlots(data);
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                })
+                .catch(error => {
+                    console.error('Error refreshing slots:', error);
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                });
+        });
+        
+        // Update available slots on the UI
+        function updateAvailableSlots(slots) {
+            const container = document.getElementById('parking-slots-container');
+            
+            if (slots.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i> No parking slots are available at this time.
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            slots.forEach(slot => {
+                const isDisabled = current_user_vehicle_type !== 'Electric' && slot.slot_type === 'Electric';
+                
+                html += `
+                    <div class="col-md-3 col-sm-4 col-6 slot-item" data-type="${slot.slot_type}">
+                        <div class="parking-slot parking-slot-${slot.slot_type.toLowerCase()} ${isDisabled ? 'disabled' : ''}" 
+                             data-id="${slot.id}" data-number="${slot.slot_number}" data-type="${slot.slot_type}">
+                            <div class="slot-number">${slot.slot_number}</div>
+                            <div class="slot-type">${slot.slot_type}</div>
+                            <div class="slot-icon">
+                                <i class="fas fa-${slot.slot_type === 'Electric' ? 'charging-station' : 'car'}"></i>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            
+            // Re-attach click events
+            document.querySelectorAll('.parking-slot').forEach(slot => {
+                if (!slot.classList.contains('disabled')) {
+                    slot.addEventListener('click', function() {
+                        // Same click handler as before
+                        document.querySelectorAll('.parking-slot').forEach(s => s.classList.remove('selected'));
+                        this.classList.add('selected');
+                        
+                        const slotId = this.getAttribute('data-id');
+                        const slotNumber = this.getAttribute('data-number');
+                        const slotType = this.getAttribute('data-type');
+                        
+                        slotIdField.value = slotId;
+                        slotDisplayField.value = `Slot ${slotNumber} (${slotType})`;
+                        
+                        updatePricing();
+                        checkConflicts();
+                        validateForm();
+                    });
+                }
+            });
+        }
+        
+        // Calculate duration when time fields change
+        [startTimeField, endTimeField, reservationDateField].forEach(field => {
+            field.addEventListener('change', function() {
+                calculateDuration();
+                updatePricing();
+                checkConflicts();
+                validateForm();
+            });
+        });
+        
+        // Accept terms from modal
+        document.getElementById('acceptTerms').addEventListener('click', function() {
+            termsCheckbox.checked = true;
+            validateForm();
+        });
+        
+        // Terms checkbox change
+        termsCheckbox.addEventListener('change', validateForm);
+        
+        // Calculate reservation duration
+        function calculateDuration() {
+            if (!startTimeField.value || !endTimeField.value || !reservationDateField.value) {
+                durationHoursField.value = '';
+                durationMinutesField.value = '';
+                return;
+            }
+            
+            const date = reservationDateField.value;
+            const startTime = startTimeField.value;
+            const endTime = endTimeField.value;
+            
+            const start = new Date(`${date}T${startTime}`);
+            const end = new Date(`${date}T${endTime}`);
+            
+            // If end time is before start time, assume next day
+            if (end < start) {
+                end.setDate(end.getDate() + 1);
+            }
+            
+            const durationMs = end - start;
+            const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+            const durationMinutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+            
+            durationHoursField.value = durationHours;
+            durationMinutesField.value = durationMinutes;
+        }
+        
+        // Update pricing information
+        function updatePricing() {
+            const pricingInfo = document.getElementById('pricing-info');
+            const baseRate = document.getElementById('base-rate');
+            const surchargeRow = document.getElementById('surcharge-row');
+            const surcharge = document.getElementById('surcharge');
+            const totalPrice = document.getElementById('total-price');
+            
+            // Calculate duration in hours
+            const hours = parseFloat(durationHoursField.value || 0);
+            const minutes = parseFloat(durationMinutesField.value || 0);
+            const totalHours = hours + (minutes / 60);
+            
+            if (isNaN(totalHours) || totalHours <= 0) {
+                pricingInfo.style.display = 'none';
+                return;
+            }
+            
+            // Calculate base price (example: $2 per hour)
+            const basePrice = totalHours * 2;
+            
+            // Calculate surcharge for electric slots (example: extra $1 per hour)
+            let surchargePrice = 0;
+            const selectedSlot = document.querySelector('.parking-slot.selected');
+            if (selectedSlot && selectedSlot.getAttribute('data-type') === 'Electric') {
+                surchargePrice = totalHours * 1;
+                surchargeRow.style.display = 'flex';
+            } else {
+                surchargeRow.style.display = 'none';
+            }
+            
+            // Calculate total
+            const total = basePrice + surchargePrice;
+            
+            // Update display
+            baseRate.textContent = `$${basePrice.toFixed(2)}`;
+            surcharge.textContent = `$${surchargePrice.toFixed(2)}`;
+            totalPrice.textContent = `$${total.toFixed(2)}`;
+            
+            // Show pricing info
+            pricingInfo.style.display = 'block';
+        }
+        
+        // Check for conflicting reservations
+        function checkConflicts() {
+            const slotId = slotIdField.value;
+            const date = reservationDateField.value;
+            const startTime = startTimeField.value;
+            const endTime = endTimeField.value;
+            
+            // Clear any previous conflicts
+            document.getElementById('conflicts-container').style.display = 'none';
+            document.getElementById('conflicts-list').innerHTML = '';
+            
+            if (!slotId || !date || !startTime || !endTime) {
+                return;
+            }
+            
+            // Make API request to check conflicts
+            fetch(`/api/check-conflicts?slot_id=${slotId}&date=${date}&start_time=${startTime}&end_time=${endTime}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.conflicts && data.conflicts.length > 0) {
+                        // Show conflicts
+                        const conflictsList = document.getElementById('conflicts-list');
+                        conflictsList.innerHTML = '';
+                        
+                        data.conflicts.forEach(conflict => {
+                            const li = document.createElement('li');
+                            li.textContent = `${conflict.start_time} - ${conflict.end_time}`;
+                            conflictsList.appendChild(li);
+                        });
+                        
+                        document.getElementById('conflicts-container').style.display = 'block';
+                        
+                        // Disable reserve button
+                        reserveButton.disabled = true;
+                    } else {
+                        // Hide conflicts container
+                        document.getElementById('conflicts-container').style.display = 'none';
+                        
+                        // Re-validate form
+                        validateForm();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking conflicts:', error);
+                });
+        }
+        
+        // Validate the form
+        function validateForm() {
+            const slotSelected = slotIdField.value ? true : false;
+            const dateSelected = reservationDateField.value ? true : false;
+            const startTimeSelected = startTimeField.value ? true : false;
+            const endTimeSelected = endTimeField.value ? true : false;
+            const termsAccepted = termsCheckbox.checked;
+            const conflictsVisible = document.getElementById('conflicts-container').style.display !== 'none';
+            
+            // Check duration
+            let validDuration = false;
+            if (durationHoursField.value) {
+                const hours = parseInt(durationHoursField.value);
+                const minutes = parseInt(durationMinutesField.value || 0);
+                
+                // Minimum 1 hour, maximum 24 hours (or whatever max_duration is set to)
+                const totalHours = hours + (minutes / 60);
+                validDuration = totalHours >= 1 && totalHours <= {{ max_duration|default(24) }};
+            }
+            
+            reserveButton.disabled = !slotSelected || !dateSelected || !startTimeSelected || !endTimeSelected || !validDuration || !termsAccepted || conflictsVisible;
+        }
+        
+        // Initialize
+        calculateDuration();
+        validateForm();
+    });
+</script>
+{% endblock %}

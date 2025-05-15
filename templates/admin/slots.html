@@ -1,0 +1,922 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Parking Slots - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Manage Parking Slots</h2>
+                <p class="text-muted">Add, edit and manage parking slots</p>
+            </div>
+            <div class="btn-group">
+                <a href="{{ url_for('add_slot') }}" class="btn btn-primary">
+                    <i class="fas fa-plus-circle"></i> Add New Slot
+                </a>
+                <button type="button" class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#exportModal">
+                    <i class="fas fa-file-export"></i> Export Slots
+                </button>
+            </div>
+        </div>
+        <hr>
+    </div>
+    
+    <!-- Search and Filter Row -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Search & Filter</h4>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('admin_slots') }}" id="searchForm">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" name="search" placeholder="Search by slot number" value="{{ request.args.get('search', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="type" class="form-select">
+                                    <option value="">All Types</option>
+                                    <option value="Regular" {% if request.args.get('type') == 'Regular' %}selected{% endif %}>Regular</option>
+                                    <option value="Electric" {% if request.args.get('type') == 'Electric' %}selected{% endif %}>Electric</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="status" class="form-select">
+                                    <option value="">All Status</option>
+                                    <option value="Available" {% if request.args.get('status') == 'Available' %}selected{% endif %}>Available</option>
+                                    <option value="Occupied" {% if request.args.get('status') == 'Occupied' %}selected{% endif %}>Occupied</option>
+                                    <option value="Maintenance" {% if request.args.get('status') == 'Maintenance' %}selected{% endif %}>Maintenance</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="sort" class="form-select">
+                                    <option value="number" {% if request.args.get('sort') == 'number' %}selected{% endif %}>Sort by Number</option>
+                                    <option value="type" {% if request.args.get('sort') == 'type' %}selected{% endif %}>Sort by Type</option>
+                                    <option value="status" {% if request.args.get('sort') == 'status' %}selected{% endif %}>Sort by Status</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary flex-grow-1">Apply Filters</button>
+                                    <a href="{{ url_for('admin_slots') }}" class="btn btn-outline-secondary">Reset</a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-parking fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ total_slots }}</h5>
+                        <div>Total Slots</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-check-circle fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ available_slots }}</h5>
+                        <div>Available</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-car fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ occupied_slots }}</h5>
+                        <div>Occupied</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-tools fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ maintenance_slots }}</h5>
+                        <div>Maintenance</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Slots Table -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">All Parking Slots</h4>
+                    <div>
+                        <span class="badge bg-primary">Total: {{ slots|length }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if slots %}
+                        <!-- Bulk Actions -->
+                        <div class="mb-3">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="selectAll">
+                                        <label class="form-check-label" for="selectAll">Select All</label>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-success" id="bulkAvailable" disabled>
+                                            Set Available
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="bulkMaintenance" disabled>
+                                            Set Maintenance
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="bulkDelete" disabled>
+                                            Delete Selected
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th width="40">#</th>
+                                        <th>Slot Number</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Usage</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for slot in slots %}
+                                        <tr>
+                                            <td>
+                                                <div class="form-check">
+                                                    <input class="form-check-input slot-select" 
+                                                           type="checkbox" 
+                                                           value="{{ slot.id }}" 
+                                                           id="slot{{ slot.id }}"
+                                                           {% if slot.status == 'Occupied' %}disabled{% endif %}>
+                                                </div>
+                                            </td>
+                                            <td><strong>{{ slot.slot_number }}</strong></td>
+                                            <td>
+                                                <span class="badge bg-{{ 'primary' if slot.slot_type == 'Regular' else 'success' }}">
+                                                    {{ slot.slot_type }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'success' if slot.status == 'Available' else 'warning' if slot.status == 'Occupied' else 'danger' }}">
+                                                    {{ slot.status }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#slotHistoryModal" 
+                                                        data-slot-id="{{ slot.id }}" 
+                                                        data-slot-number="{{ slot.slot_number }}">
+                                                    <i class="fas fa-history"></i> View History
+                                                </button>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <button type="button" class="btn btn-sm btn-info" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#slotDetailsModal"
+                                                            data-slot-id="{{ slot.id }}">
+                                                        <i class="fas fa-info-circle"></i>
+                                                    </button>
+                                                    <a href="{{ url_for('edit_slot', id=slot.id) }}" class="btn btn-sm btn-primary">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                    {% if slot.status != 'Occupied' %}
+                                                        <a href="{{ url_for('delete_slot', id=slot.id) }}" 
+                                                           class="btn btn-sm btn-outline-danger" 
+                                                           onclick="return confirm('Are you sure you want to delete this parking slot?')">
+                                                            <i class="fas fa-trash"></i>
+                                                        </a>
+                                                    {% else %}
+                                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Cannot delete an occupied slot">
+                                                            <i class="fas fa-lock"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        <nav aria-label="Slots pagination" class="mt-4">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin_slots', page=page-1, search=request.args.get('search', ''), type=request.args.get('type', ''), status=request.args.get('status', ''), sort=request.args.get('sort', 'number')) if page > 1 else '#' }}">Previous</a>
+                                </li>
+                                
+                                {% for p in range(1, total_pages + 1) %}
+                                    <li class="page-item {% if p == page %}active{% endif %}">
+                                        <a class="page-link" href="{{ url_for('admin_slots', page=p, search=request.args.get('search', ''), type=request.args.get('type', ''), status=request.args.get('status', ''), sort=request.args.get('sort', 'number')) }}">{{ p }}</a>
+                                    </li>
+                                {% endfor %}
+                                
+                                <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin_slots', page=page+1, search=request.args.get('search', ''), type=request.args.get('type', ''), status=request.args.get('status', ''), sort=request.args.get('sort', 'number')) if page < total_pages else '#' }}">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            No parking slots found with the selected filters. <a href="{{ url_for('add_slot') }}">Add a new slot</a>.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Parking Slot Map -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Parking Slot Map</h4>
+                </div>
+                <div class="card-body">
+                    <div class="parking-map">
+                        <div class="row g-3" id="slotGrid">
+                            {% for slot in all_slots %}
+                                <div class="col-md-2 col-sm-3 col-4">
+                                    <div class="parking-slot {{ 'available' if slot.status == 'Available' else 'occupied' if slot.status == 'Occupied' else 'maintenance' }} {{ 'electric' if slot.slot_type == 'Electric' else '' }}" onclick="showSlotDetails({{ slot.id }})">
+                                        <div class="slot-number">{{ slot.slot_number }}</div>
+                                        <div class="slot-type">{{ slot.slot_type }}</div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slot Details Modal -->
+<div class="modal fade" id="slotDetailsModal" tabindex="-1" aria-labelledby="slotDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="slotDetailsModalLabel">Slot Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="slotDetailsLoader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading slot details...</p>
+                </div>
+                <div id="slotDetailsContent" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Basic Information</div>
+                                <div class="card-body">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <th width="130">Slot Number:</th>
+                                            <td id="detail-number"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Type:</th>
+                                            <td id="detail-type"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Status:</th>
+                                            <td id="detail-status"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Location:</th>
+                                            <td id="detail-location"></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Statistics</div>
+                                <div class="card-body">
+                                    <div class="row text-center">
+                                        <div class="col-6 mb-3">
+                                            <div class="p-3 rounded" style="background-color: #f8f9fa;">
+                                                <h3 id="detail-usage-count">0</h3>
+                                                <p class="mb-0">Total Usages</p>
+                                            </div>
+                                        </div>
+                                        <div class="col-6 mb-3">
+                                            <div class="p-3 rounded" style="background-color: #f8f9fa;">
+                                                <h3 id="detail-hours-used">0h</h3>
+                                                <p class="mb-0">Hours Used</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-3">
+                                <div class="card-header">Current Reservation</div>
+                                <div class="card-body" id="current-reservation-container">
+                                    <p class="text-center" id="no-current-reservation">No active reservation</p>
+                                    <div id="current-reservation-details" style="display: none;">
+                                        <p><strong>User:</strong> <span id="current-user"></span></p>
+                                        <p><strong>Start Time:</strong> <span id="current-start"></span></p>
+                                        <p><strong>End Time:</strong> <span id="current-end"></span></p>
+                                        <a href="#" id="current-reservation-link" class="btn btn-sm btn-primary">View Reservation</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="slotEditButton" class="btn btn-primary">Edit Slot</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Slot History Modal -->
+<div class="modal fade" id="slotHistoryModal" tabindex="-1" aria-labelledby="slotHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="slotHistoryModalLabel">Usage History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="historyLoader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading usage history...</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="slotHistoryBody">
+                            <!-- History will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportModalLabel">Export Parking Slots</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="exportForm">
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="exportFormat" id="csvFormat" value="csv" checked>
+                            <label class="btn btn-outline-primary" for="csvFormat">CSV</label>
+                            
+                            <input type="radio" class="btn-check" name="exportFormat" id="excelFormat" value="excel">
+                            <label class="btn btn-outline-primary" for="excelFormat">Excel</label>
+                            
+                            <input type="radio" class="btn-check" name="exportFormat" id="pdfFormat" value="pdf">
+                            <label class="btn btn-outline-primary" for="pdfFormat">PDF</label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Data to Export</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="exportAll" checked>
+                            <label class="form-check-label" for="exportAll">
+                                Export all slots
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="exportFiltered">
+                            <label class="form-check-label" for="exportFiltered">
+                                Export only filtered slots
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Include Fields</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldNumber" checked>
+                                    <label class="form-check-label" for="fieldNumber">Slot Number</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldType" checked>
+                                    <label class="form-check-label" for="fieldType">Type</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldStatus" checked>
+                                    <label class="form-check-label" for="fieldStatus">Status</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldLocation">
+                                    <label class="form-check-label" for="fieldLocation">Location</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldUsage">
+                                    <label class="form-check-label" for="fieldUsage">Usage Count</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldHours">
+                                    <label class="form-check-label" for="fieldHours">Hours Used</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="exportBtn">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .parking-map {
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+    }
+    .parking-slot {
+        height: 80px;
+        border-radius: 5px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .parking-slot:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    .parking-slot.available {
+        background-color: #28a745;
+    }
+    .parking-slot.occupied {
+        background-color: #ffc107;
+    }
+    .parking-slot.maintenance {
+        background-color: #dc3545;
+    }
+    .parking-slot.electric::after {
+        content: "⚡";
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        font-size: 14px;
+    }
+    .slot-number {
+        font-size: 18px;
+    }
+    .slot-type {
+        font-size: 12px;
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Select All Checkbox
+        const selectAll = document.getElementById('selectAll');
+        const slotCheckboxes = document.querySelectorAll('.slot-select:not([disabled])');
+        const bulkAvailable = document.getElementById('bulkAvailable');
+        const bulkMaintenance = document.getElementById('bulkMaintenance');
+        const bulkDelete = document.getElementById('bulkDelete');
+        
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                const isChecked = this.checked;
+                
+                slotCheckboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                
+                updateBulkButtons();
+            });
+        }
+        
+        // Individual checkbox change
+        slotCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateBulkButtons);
+        });
+        
+        // Update bulk action buttons state
+        function updateBulkButtons() {
+            const selectedCount = Array.from(slotCheckboxes).filter(cb => cb.checked).length;
+            
+            bulkAvailable.disabled = selectedCount === 0;
+            bulkMaintenance.disabled = selectedCount === 0;
+            bulkDelete.disabled = selectedCount === 0;
+            
+            bulkAvailable.textContent = `Set Available (${selectedCount})`;
+            bulkMaintenance.textContent = `Set Maintenance (${selectedCount})`;
+            bulkDelete.textContent = `Delete Selected (${selectedCount})`;
+        }
+        
+        // Bulk set available
+        if (bulkAvailable) {
+            bulkAvailable.addEventListener('click', function() {
+                if (confirm('Are you sure you want to set all selected slots to Available?')) {
+                    const selectedIds = Array.from(slotCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value);
+                        
+                    if (selectedIds.length > 0) {
+                        processBulkAction('available', selectedIds);
+                    }
+                }
+            });
+        }
+        
+        // Bulk set maintenance
+        if (bulkMaintenance) {
+            bulkMaintenance.addEventListener('click', function() {
+                if (confirm('Are you sure you want to set all selected slots to Maintenance?')) {
+                    const selectedIds = Array.from(slotCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value);
+                        
+                    if (selectedIds.length > 0) {
+                        processBulkAction('maintenance', selectedIds);
+                    }
+                }
+            });
+        }
+        
+        // Bulk delete
+        if (bulkDelete) {
+            bulkDelete.addEventListener('click', function() {
+                if (confirm('Are you sure you want to delete all selected parking slots? This action cannot be undone.')) {
+                    const selectedIds = Array.from(slotCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value);
+                        
+                    if (selectedIds.length > 0) {
+                        processBulkAction('delete', selectedIds);
+                    }
+                }
+            });
+        }
+        
+        // Process bulk action
+        function processBulkAction(action, ids) {
+            fetch('/api/admin/bulk-slot-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: action,
+                    slot_ids: ids
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request.');
+            });
+        }
+        
+        // Slot Details Modal
+        const slotDetailsModal = document.getElementById('slotDetailsModal');
+        if (slotDetailsModal) {
+            slotDetailsModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                if (button) {
+                    const slotId = button.getAttribute('data-slot-id');
+                    fetchSlotDetails(slotId);
+                }
+            });
+        }
+        
+        // Global function to show slot details
+        window.showSlotDetails = function(slotId) {
+            const modal = new bootstrap.Modal(document.getElementById('slotDetailsModal'));
+            modal.show();
+            fetchSlotDetails(slotId);
+        }
+        
+        function fetchSlotDetails(slotId) {
+            document.getElementById('slotDetailsContent').style.display = 'none';
+            document.getElementById('slotDetailsLoader').style.display = 'block';
+            document.getElementById('slotEditButton').href = `/admin/edit-slot/${slotId}`;
+                
+            // Fetch slot details
+            fetch(`/api/admin/slot-details/${slotId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateSlotDetailsModal(data);
+                    
+                    // Show content
+                    document.getElementById('slotDetailsLoader').style.display = 'none';
+                    document.getElementById('slotDetailsContent').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching slot details:', error);
+                    document.getElementById('slotDetailsLoader').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> Error loading slot details. Please try again.
+                        </div>
+                    `;
+                });
+        }
+        
+        function updateSlotDetailsModal(data) {
+            // Update slot details
+            document.getElementById('detail-number').textContent = data.slot_number;
+            
+            document.getElementById('detail-type').innerHTML = `
+                <span class="badge bg-${data.slot_type === 'Regular' ? 'primary' : 'success'}">
+                    ${data.slot_type}
+                </span>
+            `;
+            
+            document.getElementById('detail-status').innerHTML = `
+                <span class="badge bg-${data.status === 'Available' ? 'success' : data.status === 'Occupied' ? 'warning' : 'danger'}">
+                    ${data.status}
+                </span>
+            `;
+            
+            document.getElementById('detail-location').textContent = data.location || 'Not specified';
+            
+            document.getElementById('detail-usage-count').textContent = data.usage_count;
+            document.getElementById('detail-hours-used').textContent = data.hours_used + 'h';
+            
+            // Update current reservation
+            if (data.current_reservation) {
+                document.getElementById('no-current-reservation').style.display = 'none';
+                document.getElementById('current-reservation-details').style.display = 'block';
+                
+                document.getElementById('current-user').textContent = data.current_reservation.user_name;
+                document.getElementById('current-start').textContent = data.current_reservation.start_time;
+                document.getElementById('current-end').textContent = data.current_reservation.end_time;
+                document.getElementById('current-reservation-link').href = `/admin/edit-reservation/${data.current_reservation.id}`;
+            } else {
+                document.getElementById('no-current-reservation').style.display = 'block';
+                document.getElementById('current-reservation-details').style.display = 'none';
+            }
+        }
+        
+        // Slot History Modal
+        const slotHistoryModal = document.getElementById('slotHistoryModal');
+        if (slotHistoryModal) {
+            slotHistoryModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const slotId = button.getAttribute('data-slot-id');
+                const slotNumber = button.getAttribute('data-slot-number');
+                
+                this.querySelector('.modal-title').textContent = `Usage History for Slot ${slotNumber}`;
+                document.getElementById('historyLoader').style.display = 'block';
+                document.getElementById('slotHistoryBody').innerHTML = '';
+                
+                // Fetch slot history
+                fetch(`/api/admin/slot-history/${slotId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('historyLoader').style.display = 'none';
+                        const tbody = document.getElementById('slotHistoryBody');
+                        
+                        if (data.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No usage history found</td></tr>';
+                            return;
+                        }
+                        
+                        data.forEach(reservation => {
+                            const statusClass = reservation.status === 'Pending' ? 'warning' : 
+                                              reservation.status === 'Active' ? 'success' : 
+                                              reservation.status === 'Completed' ? 'dark' : 'danger';
+                            
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td>${reservation.user_name}</td>
+                                    <td>${reservation.start_time}</td>
+                                    <td>${reservation.end_time}</td>
+                                    <td>${reservation.duration}</td>
+                                    <td><span class="badge bg-${statusClass}">${reservation.status}</span></td>
+                                </tr>
+                            `;
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching slot history:', error);
+                        document.getElementById('historyLoader').style.display = 'none';
+                        document.getElementById('slotHistoryBody').innerHTML = `
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="alert alert-danger mb-0">
+                                        Error loading history. Please try again.
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+            });
+        }
+        
+        // Export functionality
+        document.getElementById('exportAll').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('exportFiltered').checked = false;
+            }
+        });
+        
+        document.getElementById('exportFiltered').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('exportAll').checked = false;
+            }
+        });
+        
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            // Get form data
+            const format = document.querySelector('input[name="exportFormat"]:checked').value;
+            const exportAll = document.getElementById('exportAll').checked;
+            
+            // Selected fields
+            const fields = [];
+            if (document.getElementById('fieldNumber').checked) fields.push('slot_number');
+            if (document.getElementById('fieldType').checked) fields.push('slot_type');
+            if (document.getElementById('fieldStatus').checked) fields.push('status');
+            if (document.getElementById('fieldLocation').checked) fields.push('location');
+            if (document.getElementById('fieldUsage').checked) fields.push('usage_count');
+            if (document.getElementById('fieldHours').checked) fields.push('hours_used');
+            
+            if (fields.length === 0) {
+                alert('Please select at least one field to export');
+                return;
+            }
+            
+            // Show loading spinner
+            const exportBtnOriginal = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting...';
+            this.disabled = true;
+            
+            // Construct URL with query params
+            let url = `/api/admin/export-slots?format=${format}`;
+            
+            if (!exportAll) {
+                // Add current filters to URL
+                const currentUrl = new URL(window.location.href);
+                for (const [key, value] of currentUrl.searchParams.entries()) {
+                    if (key !== 'page') {
+                        url += `&${key}=${encodeURIComponent(value)}`;
+                    }
+                }
+            }
+            
+            // Add selected fields
+            url += `&fields=${fields.join(',')}`;
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+            modal.hide();
+            
+            const btnRef = this;
+            
+            fetch(url, { method: 'GET' })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Export failed');
+                        });
+                    }
+                    
+                    const contentType = response.headers.get('content-type');
+                    
+                    // If it's JSON, it's likely an error response
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Export failed');
+                        });
+                    }
+                    
+                    // For HTML content (PDF fallback), open in a new tab
+                    if (contentType && contentType.includes('text/html')) {
+                        // For PDF exports that fall back to HTML, open in a new tab with the same URL
+                        const newWindow = window.open(url, '_blank');
+                        if (!newWindow) {
+                            alert('Please allow popups for this site to view the PDF export');
+                        }
+                        
+                        // Reset button state
+                        btnRef.innerHTML = exportBtnOriginal;
+                        btnRef.disabled = false;
+                        return null; // Skip blob handling
+                    }
+                    
+                    return response.blob();
+                })
+                .then(blob => {
+                    if (!blob) return; // Skip if we opened a new tab (for HTML)
+                    
+                    // Create download link and trigger download
+                    const extension = format === 'excel' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'csv';
+                    const filename = `parking_slots_export_${new Date().toISOString().split('T')[0]}.${extension}`;
+                    
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(blob);
+                    downloadLink.download = filename;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    
+                    // Reset button
+                    btnRef.innerHTML = exportBtnOriginal;
+                    btnRef.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Export error:', error);
+                    alert(`${error.message || 'Export failed'}. Try using CSV format or run the install_dependencies.py script to install the required packages.`);
+                    btnRef.innerHTML = exportBtnOriginal;
+                    btnRef.disabled = false;
+                });
+        });
+    });
+</script>
+{% endblock %}

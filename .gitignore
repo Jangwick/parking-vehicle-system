@@ -1,0 +1,59 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+
+# Development/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Flask instance folder
+instance/
+
+# Environment variables and secrets
+.env
+.flaskenv
+*.env
+
+# Logs
+logs/
+*.log
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Static files that should be generated at runtime
+static/uploads/
+
+# Temporary files
+tmp/
+.temp/
+.tmp/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Application specific
+config.py
+
+# System-specific
+Thumbs.db
+desktop.ini

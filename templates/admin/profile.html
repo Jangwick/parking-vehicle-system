@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Profile - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Admin Profile</h2>
+            <p class="text-muted">Manage your account details and preferences</p>
+            <hr>
+        </div>
+    </div>
+
+    {% if success_message %}
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle me-2"></i> {{ success_message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    {% if error_message %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i> {{ error_message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-3">
+            <!-- Profile Navigation -->
+            <div class="list-group mb-4" id="profile-tabs" role="tablist">
+                <a class="list-group-item list-group-item-action active" id="account-tab" data-bs-toggle="list" href="#account" role="tab">
+                    <i class="fas fa-user-circle me-2"></i> Account Details
+                </a>
+                <a class="list-group-item list-group-item-action" id="password-tab" data-bs-toggle="list" href="#password" role="tab">
+                    <i class="fas fa-key me-2"></i> Change Password
+                </a>
+                <a class="list-group-item list-group-item-action" id="preferences-tab" data-bs-toggle="list" href="#preferences" role="tab">
+                    <i class="fas fa-sliders-h me-2"></i> Preferences
+                </a>
+                <a class="list-group-item list-group-item-action" id="activity-tab" data-bs-toggle="list" href="#activity" role="tab">
+                    <i class="fas fa-history me-2"></i> Recent Activity
+                </a>
+            </div>
+            
+            <!-- Profile Summary Card -->
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="avatar bg-primary rounded-circle d-flex justify-content-center align-items-center mx-auto mb-3" style="width:80px; height:80px; color:white; font-size:36px;">
+                        {{ current_user.name[0]|upper }}
+                    </div>
+                    <h5 class="card-title">{{ current_user.name }}</h5>
+                    <p class="card-text text-muted">Administrator</p>
+                    <div class="d-grid">
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary mt-2">
+                            <i class="fas fa-tachometer-alt me-2"></i>Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- Account Details Tab -->
+                        <div class="tab-pane fade show active" id="account" role="tabpanel">
+                            <h4 class="card-title mb-4">Account Details</h4>
+                            <form method="POST" action="{{ url_for('admin_profile_update') }}">
+                                <input type="hidden" name="action" value="update_profile">
+                                {{ form.hidden_tag() if form }}
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="name" class="form-label">Full Name</label>
+                                        <input type="text" class="form-control" id="name" name="name" value="{{ current_user.name }}" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="email" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="vehicle_type" class="form-label">Vehicle Type</label>
+                                        <select class="form-select" id="vehicle_type" name="vehicle_type">
+                                            <option value="Gasoline" {% if current_user.vehicle_type == 'Gasoline' %}selected{% endif %}>Gasoline</option>
+                                            <option value="Diesel" {% if current_user.vehicle_type == 'Diesel' %}selected{% endif %}>Diesel</option>
+                                            <option value="Electric" {% if current_user.vehicle_type == 'Electric' %}selected{% endif %}>Electric</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="joined_date" class="form-label">Account Created</label>
+                                        <input type="text" class="form-control" id="joined_date" value="{% if current_user.created_at is defined and current_user.created_at %}{{ current_user.created_at.strftime('%Y-%m-%d') }}{% else %}Not available{% endif %}" disabled>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Change Password Tab -->
+                        <div class="tab-pane fade" id="password" role="tabpanel">
+                            <h4 class="card-title mb-4">Change Password</h4>
+                            <form method="POST" action="{{ url_for('admin_profile_update') }}" id="passwordForm">
+                                <input type="hidden" name="action" value="change_password">
+                                {{ form.hidden_tag() if form }}
+                                
+                                <div class="mb-3">
+                                    <label for="current_password" class="form-label">Current Password</label>
+                                    <input type="password" class="form-control" id="current_password" name="current_password" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="new_password" class="form-label">New Password</label>
+                                    <input type="password" class="form-control" id="new_password" name="new_password" required>
+                                    <div class="form-text">Password must be at least 8 characters long.</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="confirm_password" class="form-label">Confirm New Password</label>
+                                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                                </div>
+                                
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> For security reasons, you'll be asked to log in again after changing your password.
+                                </div>
+                                
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-primary">Update Password</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Preferences Tab -->
+                        <div class="tab-pane fade" id="preferences" role="tabpanel">
+                            <h4 class="card-title mb-4">Interface Preferences</h4>
+                            <form method="POST" action="{{ url_for('admin_profile_update') }}">
+                                <input type="hidden" name="action" value="update_preferences">
+                                {{ form.hidden_tag() if form }}
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Dashboard Layout</label>
+                                    <div class="d-flex gap-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="dashboard_layout" id="layout_standard" value="standard" 
+                                                   {% if preferences.dashboard_layout == 'standard' %}checked{% endif %}>
+                                            <label class="form-check-label" for="layout_standard">
+                                                Standard
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="dashboard_layout" id="layout_compact" value="compact" 
+                                                   {% if preferences.dashboard_layout == 'compact' %}checked{% endif %}>
+                                            <label class="form-check-label" for="layout_compact">
+                                                Compact
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="dashboard_layout" id="layout_detailed" value="detailed" 
+                                                   {% if preferences.dashboard_layout == 'detailed' %}checked{% endif %}>
+                                            <label class="form-check-label" for="layout_detailed">
+                                                Detailed
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="items_per_page" class="form-label">Items Per Page</label>
+                                    <select class="form-select" id="items_per_page" name="items_per_page">
+                                        <option value="10" {% if preferences.items_per_page == 10 %}selected{% endif %}>10 items</option>
+                                        <option value="20" {% if preferences.items_per_page == 20 %}selected{% endif %}>20 items</option>
+                                        <option value="50" {% if preferences.items_per_page == 50 %}selected{% endif %}>50 items</option>
+                                        <option value="100" {% if preferences.items_per_page == 100 %}selected{% endif %}>100 items</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications" 
+                                           {% if preferences.email_notifications %}checked{% endif %}>
+                                    <label class="form-check-label" for="email_notifications">
+                                        Receive Email Notifications
+                                    </label>
+                                    <div class="form-text">Receive emails for important system events.</div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-end">
+                                    <button type="submit" class="btn btn-primary">Save Preferences</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Recent Activity Tab -->
+                        <div class="tab-pane fade" id="activity" role="tabpanel">
+                            <h4 class="card-title mb-4">Recent Account Activity</h4>
+                            
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Action</th>
+                                            <th>Details</th>
+                                            <th>Date & Time</th>
+                                            <th>IP Address</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% if activity_logs %}
+                                            {% for log in activity_logs %}
+                                            <tr>
+                                                <td>{{ log.action }}</td>
+                                                <td>{{ log.details }}</td>
+                                                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                                <td>{{ log.ip_address }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="4" class="text-center">No recent activity found.</td>
+                                            </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="alert alert-info mt-3">
+                                <i class="fas fa-info-circle"></i> Activity logs are kept for 30 days for security and auditing purposes.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ensure that the tab persists when the form is submitted
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        
+        if (activeTab) {
+            const tabElement = document.getElementById(activeTab + '-tab');
+            if (tabElement) {
+                const tab = new bootstrap.Tab(tabElement);
+                tab.show();
+            }
+        }
+        
+        // Store active tab in URL when changing tabs
+        const tabElements = document.querySelectorAll('#profile-tabs a[data-bs-toggle="list"]')
+        tabElements.forEach(tabElement => {
+            tabElement.addEventListener('shown.bs.tab', function (event) {
+                const id = event.target.id.replace('-tab', '');
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', id);
+                window.history.replaceState(null, '', url);
+            });
+        });
+        
+        // Password validation
+        const passwordForm = document.getElementById('passwordForm');
+        if (passwordForm) {
+            passwordForm.addEventListener('submit', function(event) {
+                const newPassword = document.getElementById('new_password').value;
+                const confirmPassword = document.getElementById('confirm_password').value;
+                
+                if (newPassword.length < 8) {
+                    event.preventDefault();
+                    alert('Password must be at least 8 characters long.');
+                    return false;
+                }
+                
+                if (newPassword !== confirmPassword) {
+                    event.preventDefault();
+                    alert('Passwords do not match.');
+                    return false;
+                }
+                
+                return true;
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}View Reservations{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>View Reservations</h2>
+            <p class="text-muted">View and manage your reservations</p>
+        </div>
+    </div>
+    
+    <!-- Reservations Table -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Your Reservations</h4>
+                </div>
+                <div class="card-body">
+                    {% if reservations %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Slot</th>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for reservation in reservations %}
+                                        <tr>
+                                            <td>{{ reservation.parking_slot.slot_number }}</td>
+                                            <td>{{ reservation.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>{{ reservation.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ 'warning' if reservation.status == 'Pending' else 'success' if reservation.status == 'Active' else 'danger' }}">
+                                                    {{ reservation.status }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-info" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#reservationDetailsModal"
+                                                        data-reservation-id="{{ reservation.id }}">
+                                                    <i class="fas fa-info-circle"></i> Details
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            You don't have any reservations. <a href="{{ url_for('make_reservation') }}">Make a reservation now</a>.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reservation Details Modal -->
+<div class="modal fade" id="reservationDetailsModal" tabindex="-1" aria-labelledby="reservationDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reservationDetailsModalLabel">Reservation Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="reservationDetailsLoader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading reservation details...</p>
+                </div>
+                <div id="reservationDetailsContent" style="display: none;">
+                    <!-- Reservation details will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const reservationDetailsModal = document.getElementById('reservationDetailsModal');
+        if (reservationDetailsModal) {
+            reservationDetailsModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const reservationId = button.getAttribute('data-reservation-id');
+                
+                document.getElementById('reservationDetailsContent').style.display = 'none';
+                document.getElementById('reservationDetailsLoader').style.display = 'block';
+                
+                // Fetch reservation details
+                fetchReservationDetails(reservationId);
+            });
+        }
+        
+        // Function to fetch reservation details
+        function fetchReservationDetails(id) {
+            fetch(`/api/reservation/${id}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Process reservation data
+                    updateReservationModal(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching reservation details:', error);
+                    // Show error message in the modal
+                    document.getElementById('reservationDetails').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i> 
+                            Error loading reservation details. Please try again.
+                        </div>
+                    `;
+                });
+        }
+        
+        // Function to update reservation modal with fetched data
+        function updateReservationModal(data) {
+            const content = document.getElementById('reservationDetailsContent');
+            content.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Slot:</strong> ${data.parking_slot.slot_number}</p>
+                        <p><strong>From:</strong> ${data.start_time}</p>
+                        <p><strong>To:</strong> ${data.end_time}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Status:</strong> <span class="badge bg-${data.status === 'Pending' ? 'warning' : data.status === 'Active' ? 'success' : 'danger'}">${data.status}</span></p>
+                        <p><strong>Vehicle Type:</strong> ${data.vehicle_type}</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('reservationDetailsLoader').style.display = 'none';
+            content.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Edit User - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h2>Edit User</h2>
+            <p class="text-muted">Modify user account details</p>
+            <hr>
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">User Information</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin_edit_user', id=user.id) }}">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">Full Name</label>
+                                    <input type="text" class="form-control" id="name" name="name" value="{{ user.name }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="vehicle_type" class="form-label">Vehicle Type</label>
+                                    <select class="form-select" id="vehicle_type" name="vehicle_type" required>
+                                        <option value="Gasoline" {% if user.vehicle_type == 'Gasoline' %}selected{% endif %}>Gasoline</option>
+                                        <option value="Diesel" {% if user.vehicle_type == 'Diesel' %}selected{% endif %}>Diesel</option>
+                                        <option value="Electric" {% if user.vehicle_type == 'Electric' %}selected{% endif %}>Electric</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Account Status</label>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %}>
+                                        <label class="form-check-label" for="is_active">Active Account</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">Reset Password (leave empty to keep current)</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password">
+                            <div class="form-text">Only enter a new password if you want to reset it.</div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-info-circle fa-lg mt-1"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <p class="mb-0">
+                                        <strong>Note:</strong> Changing user information will not affect their existing reservations. 
+                                        If you deactivate a user account, they won't be able to log in, but their reservations will remain active.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- User Reservations Summary -->
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">User Reservations Summary</h4>
+                    <a href="#" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#userReservationsModal" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}">
+                        View All Reservations
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="p-3 rounded" style="background-color: #f8f9fa;">
+                                <h3>{{ user.reservations|length }}</h3>
+                                <p class="mb-0">Total</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 rounded" style="background-color: #fff3cd;">
+                                <h3>{{ user.reservations|selectattr('status', 'eq', 'Pending')|list|length }}</h3>
+                                <p class="mb-0">Pending</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 rounded" style="background-color: #d1e7dd;">
+                                <h3>{{ user.reservations|selectattr('status', 'eq', 'Active')|list|length }}</h3>
+                                <p class="mb-0">Active</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-3 rounded" style="background-color: #f8d7da;">
+                                <h3>{{ user.reservations|selectattr('status', 'eq', 'Cancelled')|list|length }}</h3>
+                                <p class="mb-0">Cancelled</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Reservations Modal (same as in users.html) -->
+<div class="modal fade" id="userReservationsModal" tabindex="-1" aria-labelledby="userReservationsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userReservationsModalLabel">Reservations for {{ user.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="reservationsLoader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading reservations...</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Slot</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userReservationsBody">
+                            <!-- Reservations will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // User Reservations Modal
+        const userReservationsModal = document.getElementById('userReservationsModal');
+        if (userReservationsModal) {
+            userReservationsModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const userId = button.getAttribute('data-user-id');
+                const userName = button.getAttribute('data-user-name');
+                
+                this.querySelector('.modal-title').textContent = `Reservations for ${userName}`;
+                document.getElementById('reservationsLoader').style.display = 'block';
+                document.getElementById('userReservationsBody').innerHTML = '';
+                
+                // Fetch user reservations
+                fetch(`/api/admin/user-reservations/${userId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('reservationsLoader').style.display = 'none';
+                        const tbody = document.getElementById('userReservationsBody');
+                        
+                        if (data.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No reservations found</td></tr>';
+                            return;
+                        }
+                        
+                        data.forEach(res => {
+                            const statusClass = res.status === 'Pending' ? 'warning' : 
+                                              res.status === 'Active' ? 'success' : 
+                                              res.status === 'Completed' ? 'dark' : 'danger';
+                            
+                            const actionsHtml = res.status === 'Pending' || res.status === 'Active' ? 
+                                `<a href="/admin/edit-reservation/${res.id}" class="btn btn-sm btn-outline-primary me-1">Edit</a>
+                                 <a href="/admin/cancel-reservation/${res.id}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this reservation?')">Cancel</a>` : 
+                                `<button class="btn btn-sm btn-outline-secondary" disabled>No actions</button>`;
+                            
+                            tbody.innerHTML += `
+                                <tr>
+                                    <td>${res.slot_number} (${res.slot_type})</td>
+                                    <td>${res.start_time}</td>
+                                    <td>${res.end_time}</td>
+                                    <td><span class="badge bg-${statusClass}">${res.status}</span></td>
+                                    <td>${actionsHtml}</td>
+                                </tr>
+                            `;
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching reservations:', error);
+                        document.getElementById('reservationsLoader').style.display = 'none';
+                        document.getElementById('userReservationsBody').innerHTML = `
+                            <tr>
+                                <td colspan="5" class="text-center">
+                                    <div class="alert alert-danger mb-0">
+                                        Error loading reservations. Please try again.
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+            });
+        }
+    });
+</script>
+{% endblock %}

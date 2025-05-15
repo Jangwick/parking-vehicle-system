@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}My Reservations - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h2>My Reservations</h2>
+                <p class="text-muted">View and manage all your parking reservations</p>
+            </div>
+            <div>
+                <a href="{{ url_for('make_reservation') }}" class="btn btn-primary">
+                    <i class="fas fa-plus-circle"></i> New Reservation
+                </a>
+            </div>
+        </div>
+        <hr>
+    </div>
+    
+    <!-- Filter Controls -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <select id="status-filter" class="form-select">
+                                <option value="all">All Status</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Active">Active</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select id="sort-by" class="form-select">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="start">By Start Time</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex justify-content-end">
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-outline-secondary active" id="view-all">
+                                    <i class="fas fa-list"></i> All
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="view-active">
+                                    <i class="fas fa-clock"></i> Active/Upcoming
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="view-history">
+                                    <i class="fas fa-history"></i> History
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reservations List -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    {% if reservations %}
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="reservations-table">
+                                <thead>
+                                    <tr>
+                                        <th>Slot</th>
+                                        <th>Type</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Duration</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for reservation in reservations %}
+                                        <tr data-status="{{ reservation.status }}">
+                                            <td>{{ reservation.parking_slot.slot_number }}</td>
+                                            <td>{{ reservation.parking_slot.slot_type }}</td>
+                                            <td>{{ reservation.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>{{ reservation.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>
+                                                {% set duration_seconds = (reservation.end_time - reservation.start_time).total_seconds() %}
+                                                {% set hours = (duration_seconds / 3600)|int %}
+                                                {% set minutes = ((duration_seconds % 3600) / 60)|int %}
+                                                {{ hours }}h {{ minutes }}m
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'warning' if reservation.status == 'Pending' else 'success' if reservation.status == 'Active' else 'dark' if reservation.status == 'Completed' else 'danger' }}">
+                                                    {{ reservation.status }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" class="btn btn-info view-details" 
+                                                            data-id="{{ reservation.id }}" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#reservationDetailsModal">
+                                                        <i class="fas fa-info-circle"></i>
+                                                    </button>
+                                                    
+                                                    {% if reservation.status == 'Pending' %}
+                                                        <a href="{{ url_for('edit_reservation', id=reservation.id) }}" class="btn btn-primary">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                    {% endif %}
+                                                    
+                                                    {% if reservation.status in ['Pending', 'Active'] %}
+                                                        <button type="button" class="btn btn-danger cancel-reservation" 
+                                                                data-id="{{ reservation.id }}" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#confirmCancelModal">
+                                                            <i class="fas fa-times"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <p class="mb-0">You don't have any reservations yet. <a href="{{ url_for('make_reservation') }}">Make a reservation now</a>.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reservation Details Modal -->
+<div class="modal fade" id="reservationDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Reservation Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="reservationDetailsContent">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" id="editReservationBtn" class="btn btn-primary d-none">Edit</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Cancellation Modal -->
+<div class="modal fade" id="confirmCancelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Cancellation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to cancel this reservation?</p>
+                <p class="text-danger"><strong>This action cannot be undone.</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep It</button>
+                <form id="cancelReservationForm" method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Yes, Cancel It</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // View reservation details
+        const viewButtons = document.querySelectorAll('.view-details');
+        viewButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const reservationId = this.dataset.id;
+                fetchReservationDetails(reservationId);
+            });
+        });
+        
+        // Setup cancel reservation confirmation
+        const cancelButtons = document.querySelectorAll('.cancel-reservation');
+        cancelButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const reservationId = this.dataset.id;
+                document.getElementById('cancelReservationForm').action = `/cancel-reservation/${reservationId}`;
+            });
+        });
+        
+        // Filters
+        const statusFilter = document.getElementById('status-filter');
+        const sortBy = document.getElementById('sort-by');
+        
+        statusFilter.addEventListener('change', filterReservations);
+        sortBy.addEventListener('change', sortReservations);
+        
+        // View buttons
+        document.getElementById('view-all').addEventListener('click', function() {
+            setActiveButton(this);
+            showAllReservations();
+        });
+        
+        document.getElementById('view-active').addEventListener('click', function() {
+            setActiveButton(this);
+            filterByActiveAndPending();
+        });
+        
+        document.getElementById('view-history').addEventListener('click', function() {
+            setActiveButton(this);
+            filterByHistory();
+        });
+        
+        function setActiveButton(btn) {
+            document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+        
+        function filterReservations() {
+            const status = statusFilter.value;
+            const rows = document.querySelectorAll('#reservations-table tbody tr');
+            
+            rows.forEach(row => {
+                if (status === 'all' || row.dataset.status === status) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        function sortReservations() {
+            const sort = sortBy.value;
+            const tbody = document.querySelector('#reservations-table tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            rows.sort((a, b) => {
+                if (sort === 'newest') {
+                    return -1; // Assuming rows are already sorted by newest
+                } else if (sort === 'oldest') {
+                    return 1; // Reverse the order
+                } else if (sort === 'start') {
+                    const dateA = new Date(a.cells[2].textContent);
+                    const dateB = new Date(b.cells[2].textContent);
+                    return dateA - dateB;
+                }
+            });
+            
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
+        function showAllReservations() {
+            const rows = document.querySelectorAll('#reservations-table tbody tr');
+            rows.forEach(row => row.style.display = '');
+            statusFilter.value = 'all';
+        }
+        
+        function filterByActiveAndPending() {
+            const rows = document.querySelectorAll('#reservations-table tbody tr');
+            rows.forEach(row => {
+                const status = row.dataset.status;
+                if (status === 'Active' || status === 'Pending') {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        function filterByHistory() {
+            const rows = document.querySelectorAll('#reservations-table tbody tr');
+            rows.forEach(row => {
+                const status = row.dataset.status;
+                if (status === 'Completed' || status === 'Cancelled') {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        function fetchReservationDetails(id) {
+            const detailsContainer = document.getElementById('reservationDetailsContent');
+            detailsContainer.innerHTML = `
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+            
+            const editBtn = document.getElementById('editReservationBtn');
+            editBtn.classList.add('d-none');
+            
+            fetch(`/api/reservation/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    const statusClass = 
+                        data.status === 'Pending' ? 'warning' : 
+                        data.status === 'Active' ? 'success' : 
+                        data.status === 'Completed' ? 'dark' : 'danger';
+                    
+                    detailsContainer.innerHTML = `
+                        <div class="text-center mb-3">
+                            <span class="badge bg-${statusClass} fs-6 px-4 py-2">${data.status}</span>
+                        </div>
+                        
+                        <table class="table table-sm">
+                            <tr>
+                                <th>Slot Number:</th>
+                                <td>${data.slot_number}</td>
+                            </tr>
+                            <tr>
+                                <th>Slot Type:</th>
+                                <td>${data.slot_type}</td>
+                            </tr>
+                            <tr>
+                                <th>Start Time:</th>
+                                <td>${data.start_time}</td>
+                            </tr>
+                            <tr>
+                                <th>End Time:</th>
+                                <td>${data.end_time}</td>
+                            </tr>
+                            <tr>
+                                <th>Duration:</th>
+                                <td>${data.duration}</td>
+                            </tr>
+                            <tr>
+                                <th>Created:</th>
+                                <td>${data.created_at}</td>
+                            </tr>
+                        </table>
+                    `;
+                    
+                    // Show edit button if reservation is pending
+                    if (data.status === 'Pending') {
+                        editBtn.href = `/edit-reservation/${id}`;
+                        editBtn.classList.remove('d-none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching reservation details:', error);
+                    detailsContainer.innerHTML = `
+                        <div class="alert alert-danger">
+                            Error loading reservation details. Please try again.
+                        </div>
+                    `;
+                });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,983 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Reservations - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h2>Manage Reservations</h2>
+                <p class="text-muted">View and manage all parking reservations</p>
+            </div>
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-primary active" id="table-view-btn">
+                    <i class="fas fa-table"></i> Table View
+                </button>
+                <button type="button" class="btn btn-outline-primary" id="calendar-view-btn">
+                    <i class="fas fa-calendar-alt"></i> Calendar View
+                </button>
+                <button type="button" class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#exportModal">
+                    <i class="fas fa-file-export"></i> Export
+                </button>
+            </div>
+        </div>
+        <hr>
+    </div>
+    
+    <!-- Advanced Search and Filter Row -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Search & Filter</h4>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="{{ url_for('admin_reservations') }}" id="searchForm">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" name="search" placeholder="Search by user or slot" value="{{ request.args.get('search', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="status" class="form-select">
+                                    <option value="">All Status</option>
+                                    <option value="Pending" {% if request.args.get('status') == 'Pending' %}selected{% endif %}>Pending</option>
+                                    <option value="Active" {% if request.args.get('status') == 'Active' %}selected{% endif %}>Active</option>
+                                    <option value="Completed" {% if request.args.get('status') == 'Completed' %}selected{% endif %}>Completed</option>
+                                    <option value="Cancelled" {% if request.args.get('status') == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="slot_type" class="form-select">
+                                    <option value="">All Slot Types</option>
+                                    <option value="Regular" {% if request.args.get('slot_type') == 'Regular' %}selected{% endif %}>Regular</option>
+                                    <option value="Electric" {% if request.args.get('slot_type') == 'Electric' %}selected{% endif %}>Electric</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="sort" class="form-select">
+                                    <option value="newest" {% if request.args.get('sort') == 'newest' %}selected{% endif %}>Sort by Newest</option>
+                                    <option value="oldest" {% if request.args.get('sort') == 'oldest' %}selected{% endif %}>Sort by Oldest</option>
+                                    <option value="start_time" {% if request.args.get('sort') == 'start_time' %}selected{% endif %}>Sort by Start Time</option>
+                                    <option value="end_time" {% if request.args.get('sort') == 'end_time' %}selected{% endif %}>Sort by End Time</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">From</span>
+                                    <input type="date" class="form-control" name="start_date" value="{{ request.args.get('start_date', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">To</span>
+                                    <input type="date" class="form-control" name="end_date" value="{{ request.args.get('end_date', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3 ms-auto">
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary flex-grow-1">Apply Filters</button>
+                                    <a href="{{ url_for('admin_reservations') }}" class="btn btn-outline-secondary">Reset</a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-calendar fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ total_reservations }}</h5>
+                        <div>Total Reservations</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-hourglass-half fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ pending_reservations }}</h5>
+                        <div>Pending</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-check fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ active_reservations }}</h5>
+                        <div>Active</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body d-flex align-items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-ban fa-3x"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0">{{ cancelled_reservations }}</h5>
+                        <div>Cancelled</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Table View -->
+    <div id="table-view" class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">All Reservations</h4>
+                    <div>
+                        <span class="badge bg-primary">Total: {{ reservations|length }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if reservations %}
+                        <!-- Bulk Actions -->
+                        <div class="mb-3">
+                            <div class="row align-items-center">
+                                <div class="col-auto">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="selectAll">
+                                        <label class="form-check-label" for="selectAll">Select All</label>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-success" id="bulkApprove" disabled>
+                                            Approve Selected
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="bulkCancel" disabled>
+                                            Cancel Selected
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th width="40">#</th>
+                                        <th>User</th>
+                                        <th>Slot</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Duration</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for reservation in reservations %}
+                                        <tr>
+                                            <td>
+                                                <div class="form-check">
+                                                    <input class="form-check-input reservation-select" 
+                                                           type="checkbox" 
+                                                           value="{{ reservation.id }}" 
+                                                           id="res{{ reservation.id }}"
+                                                           {% if reservation.status not in ['Pending', 'Active'] %}disabled{% endif %}>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="avatar me-2 bg-{{ 'primary' if reservation.user.vehicle_type == 'Gasoline' else 'danger' if reservation.user.vehicle_type == 'Diesel' else 'success' }} rounded-circle d-flex justify-content-center align-items-center" style="width:32px; height:32px; color:white">
+                                                        {{ reservation.user.name[0]|upper }}
+                                                    </div>
+                                                    <div>{{ reservation.user.name }}</div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'primary' if reservation.parking_slot.slot_type == 'Regular' else 'success' }}">
+                                                    {{ reservation.parking_slot.slot_number }} ({{ reservation.parking_slot.slot_type }})
+                                                </span>
+                                            </td>
+                                            <td>{{ reservation.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>{{ reservation.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>
+                                                {% set duration_seconds = (reservation.end_time - reservation.start_time).total_seconds() %}
+                                                {% set hours = (duration_seconds / 3600)|int %}
+                                                {% set minutes = ((duration_seconds % 3600) / 60)|int %}
+                                                {{ hours }}h {{ minutes }}m
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'warning' if reservation.status == 'Pending' else 'success' if reservation.status == 'Active' else 'dark' if reservation.status == 'Completed' else 'danger' }}">
+                                                    {{ reservation.status }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <button type="button" class="btn btn-sm btn-info" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#reservationDetailsModal"
+                                                            data-reservation-id="{{ reservation.id }}">
+                                                        <i class="fas fa-info-circle"></i>
+                                                    </button>
+                                                    {% if reservation.status in ['Pending', 'Active'] %}
+                                                        <a href="{{ url_for('edit_reservation', id=reservation.id) }}" class="btn btn-sm btn-primary">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{{ url_for('cancel_reservation', id=reservation.id) }}" 
+                                                           class="btn btn-sm btn-outline-danger" 
+                                                           onclick="return confirm('Are you sure you want to cancel this reservation?')">
+                                                            <i class="fas fa-times"></i>
+                                                        </a>
+                                                    {% else %}
+                                                        <button class="btn btn-sm btn-outline-secondary" disabled>
+                                                            <i class="fas fa-lock"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        <nav aria-label="Reservations pagination" class="mt-4">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin_reservations', page=page-1, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest')) if page > 1 else '#' }}">Previous</a>
+                                </li>
+                                
+                                {% for p in range(1, total_pages + 1) %}
+                                    <li class="page-item {% if p == page %}active{% endif %}">
+                                        <a class="page-link" href="{{ url_for('admin_reservations', page=p, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest')) }}">{{ p }}</a>
+                                    </li>
+                                {% endfor %}
+                                
+                                <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin_reservations', page=page+1, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest')) if page < total_pages else '#' }}">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            No reservations found with the selected filters.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Calendar View -->
+    <div id="calendar-view" class="row mb-4" style="display: none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Reservation Calendar</h4>
+                </div>
+                <div class="card-body">
+                    <div id="reservation-calendar"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reservation Details Modal -->
+<div class="modal fade" id="reservationDetailsModal" tabindex="-1" aria-labelledby="reservationDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reservationDetailsModalLabel">Reservation Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="reservationDetailsLoader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading reservation details...</p>
+                </div>
+                <div id="reservationDetailsContent" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card mb-3">
+                                <div class="card-header">Status</div>
+                                <div class="card-body text-center">
+                                    <div id="status-badge" class="py-3 px-4 d-inline-block rounded-pill mb-2"></div>
+                                    <p class="text-muted mb-0">Reservation ID: <span id="detail-id"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="card mb-3">
+                                <div class="card-header">Reservation Information</div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p><strong>Created:</strong> <span id="detail-created"></span></p>
+                                            <p><strong>Start Time:</strong> <span id="detail-start"></span></p>
+                                            <p><strong>End Time:</strong> <span id="detail-end"></span></p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p><strong>Duration:</strong> <span id="detail-duration"></span></p>
+                                            <p><strong>Slot:</strong> <span id="detail-slot"></span></p>
+                                            <p><strong>Slot Type:</strong> <span id="detail-slot-type"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">User Information</div>
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div id="detail-user-avatar" class="avatar me-3 rounded-circle d-flex justify-content-center align-items-center" style="width:48px; height:48px; color:white; font-size: 20px;">
+                                        </div>
+                                        <div>
+                                            <h5 class="mb-0" id="detail-user-name"></h5>
+                                            <p class="text-muted mb-0" id="detail-user-email"></p>
+                                        </div>
+                                    </div>
+                                    <p><strong>Vehicle Type:</strong> <span id="detail-vehicle-type"></span></p>
+                                    <a href="#" id="detail-user-link" class="btn btn-sm btn-outline-primary">View User Profile</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">Admin Actions</div>
+                                <div class="card-body">
+                                    <div id="detail-actions-pending">
+                                        <p class="mb-3">This reservation is pending approval.</p>
+                                        <div class="d-flex gap-2">
+                                            <button id="detail-approve" class="btn btn-success flex-grow-1">Approve</button>
+                                            <button id="detail-cancel" class="btn btn-danger flex-grow-1">Cancel</button>
+                                        </div>
+                                    </div>
+                                    <div id="detail-actions-active">
+                                        <p class="mb-3">This reservation is currently active.</p>
+                                        <div class="d-flex gap-2">
+                                            <button id="detail-complete" class="btn btn-success flex-grow-1">Mark as Completed</button>
+                                            <button id="detail-cancel-active" class="btn btn-danger flex-grow-1">Cancel</button>
+                                        </div>
+                                    </div>
+                                    <div id="detail-actions-completed">
+                                        <p class="mb-3">This reservation has been completed.</p>
+                                        <a id="detail-edit-link" href="#" class="btn btn-secondary disabled">No Actions Available</a>
+                                    </div>
+                                    <div id="detail-actions-cancelled">
+                                        <p class="mb-3">This reservation has been cancelled.</p>
+                                        <a id="detail-reactivate" href="#" class="btn btn-outline-success w-100">Reactivate Reservation</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportModalLabel">Export Reservations</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="exportForm">
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="exportFormat" id="csvFormat" value="csv" checked>
+                            <label class="btn btn-outline-primary" for="csvFormat">CSV</label>
+                            
+                            <input type="radio" class="btn-check" name="exportFormat" id="excelFormat" value="excel">
+                            <label class="btn btn-outline-primary" for="excelFormat">Excel</label>
+                            
+                            <input type="radio" class="btn-check" name="exportFormat" id="pdfFormat" value="pdf">
+                            <label class="btn btn-outline-primary" for="pdfFormat">PDF</label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Data to Export</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="exportAll" checked>
+                            <label class="form-check-label" for="exportAll">
+                                Export all reservations
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="exportFiltered">
+                            <label class="form-check-label" for="exportFiltered">
+                                Export only filtered reservations
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="exportSelected">
+                            <label class="form-check-label" for="exportSelected">
+                                Export only selected reservations
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Include Fields</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldUser" checked>
+                                    <label class="form-check-label" for="fieldUser">User Name</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldSlot" checked>
+                                    <label class="form-check-label" for="fieldSlot">Slot Number</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldStart" checked>
+                                    <label class="form-check-label" for="fieldStart">Start Time</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldEnd" checked>
+                                    <label class="form-check-label" for="fieldEnd">End Time</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldStatus" checked>
+                                    <label class="form-check-label" for="fieldStatus">Status</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldDuration" checked>
+                                    <label class="form-check-label" for="fieldDuration">Duration</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldVehicleType">
+                                    <label class="form-check-label" for="fieldVehicleType">Vehicle Type</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="fieldCreated">
+                                    <label class="form-check-label" for="fieldCreated">Created Date</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="exportBtn">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.css">
+<style>
+    .fc-event {
+        cursor: pointer;
+    }
+    .fc-event-pending {
+        background-color: #ffc107;
+        border-color: #ffc107;
+    }
+    .fc-event-active {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    .fc-event-completed {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+    .fc-event-cancelled {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle between Table and Calendar Views
+        const tableViewBtn = document.getElementById('table-view-btn');
+        const calendarViewBtn = document.getElementById('calendar-view-btn');
+        const tableView = document.getElementById('table-view');
+        const calendarView = document.getElementById('calendar-view');
+        let calendar = null;
+        
+        tableViewBtn.addEventListener('click', function() {
+            tableViewBtn.classList.add('active');
+            calendarViewBtn.classList.remove('active');
+            tableView.style.display = 'flex';
+            calendarView.style.display = 'none';
+        });
+        
+        calendarViewBtn.addEventListener('click', function() {
+            calendarViewBtn.classList.add('active');
+            tableViewBtn.classList.remove('active');
+            calendarView.style.display = 'flex';
+            tableView.style.display = 'none';
+            
+            if (!calendar) {
+                initializeCalendar();
+            }
+        });
+        
+        // Initialize Calendar
+        function initializeCalendar() {
+            const calendarEl = document.getElementById('reservation-calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                events: '/api/admin/calendar-reservations',
+                eventClick: function(info) {
+                    showReservationDetails(info.event.id);
+                    
+                    // Open modal
+                    const modal = new bootstrap.Modal(document.getElementById('reservationDetailsModal'));
+                    modal.show();
+                },
+                eventClassNames: function(arg) {
+                    return [`fc-event-${arg.event.extendedProps.status.toLowerCase()}`];
+                },
+                eventContent: function(arg) {
+                    return {
+                        html: `
+                            <div class="fc-event-main-frame">
+                                <div class="fc-event-title-container">
+                                    <div class="fc-event-title">${arg.event.title}</div>
+                                </div>
+                                <div class="fc-event-time">${arg.timeText}</div>
+                            </div>
+                        `
+                    };
+                }
+            });
+            calendar.render();
+        }
+        
+        // Select All Checkbox for Bulk Actions
+        const selectAll = document.getElementById('selectAll');
+        const reservationCheckboxes = document.querySelectorAll('.reservation-select:not([disabled])');
+        const bulkApprove = document.getElementById('bulkApprove');
+        const bulkCancel = document.getElementById('bulkCancel');
+        
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                const isChecked = this.checked;
+                
+                reservationCheckboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                
+                updateBulkButtons();
+            });
+        }
+        
+        // Individual checkbox change
+        reservationCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateBulkButtons);
+        });
+        
+        // Update bulk action buttons state
+        function updateBulkButtons() {
+            const selectedCount = Array.from(reservationCheckboxes).filter(cb => cb.checked).length;
+            
+            bulkApprove.disabled = selectedCount === 0;
+            bulkCancel.disabled = selectedCount === 0;
+            
+            bulkApprove.textContent = `Approve Selected (${selectedCount})`;
+            bulkCancel.textContent = `Cancel Selected (${selectedCount})`;
+        }
+        
+        // Bulk approve
+        if (bulkApprove) {
+            bulkApprove.addEventListener('click', function() {
+                if (confirm('Are you sure you want to approve all selected reservations?')) {
+                    const selectedIds = Array.from(reservationCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value);
+                        
+                    if (selectedIds.length > 0) {
+                        processBulkAction('approve', selectedIds);
+                    }
+                }
+            });
+        }
+        
+        // Bulk cancel
+        if (bulkCancel) {
+            bulkCancel.addEventListener('click', function() {
+                if (confirm('Are you sure you want to cancel all selected reservations?')) {
+                    const selectedIds = Array.from(reservationCheckboxes)
+                        .filter(cb => cb.checked)
+                        .map(cb => cb.value);
+                        
+                    if (selectedIds.length > 0) {
+                        processBulkAction('cancel', selectedIds);
+                    }
+                }
+            });
+        }
+        
+        // Process bulk action
+        function processBulkAction(action, ids) {
+            fetch('/api/admin/bulk-reservation-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: action,
+                    reservation_ids: ids
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request.');
+            });
+        }
+        
+        // Reservation Details Modal
+        const reservationDetailsModal = document.getElementById('reservationDetailsModal');
+        if (reservationDetailsModal) {
+            reservationDetailsModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                if (button) {
+                    const reservationId = button.getAttribute('data-reservation-id');
+                    showReservationDetails(reservationId);
+                }
+            });
+        }
+        
+        function showReservationDetails(reservationId) {
+            document.getElementById('reservationDetailsContent').style.display = 'none';
+            document.getElementById('reservationDetailsLoader').style.display = 'block';
+                
+            // Fetch reservation details
+            fetch(`/api/admin/reservation-details/${reservationId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateReservationDetailsModal(data);
+                    
+                    // Show content
+                    document.getElementById('reservationDetailsLoader').style.display = 'none';
+                    document.getElementById('reservationDetailsContent').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching reservation details:', error);
+                    document.getElementById('reservationDetailsLoader').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> Error loading reservation details. Please try again.
+                        </div>
+                    `;
+                });
+        }
+        
+        function updateReservationDetailsModal(data) {
+            // Set basic reservation details
+            document.getElementById('detail-id').textContent = data.id;
+            document.getElementById('detail-created').textContent = data.created_at;
+            document.getElementById('detail-start').textContent = data.start_time;
+            document.getElementById('detail-end').textContent = data.end_time;
+            document.getElementById('detail-duration').textContent = data.duration;
+            document.getElementById('detail-slot').textContent = data.slot_number;
+            document.getElementById('detail-slot-type').textContent = data.slot_type;
+            
+            // Set user information
+            document.getElementById('detail-user-name').textContent = data.user_name;
+            document.getElementById('detail-user-email').textContent = data.user_email;
+            document.getElementById('detail-vehicle-type').textContent = data.vehicle_type;
+            document.getElementById('detail-user-link').href = `/admin/edit-user/${data.user_id}`;
+            
+            // Set user avatar
+            const avatarEl = document.getElementById('detail-user-avatar');
+            avatarEl.textContent = data.user_name.charAt(0).toUpperCase();
+            avatarEl.className = `avatar me-3 bg-${data.vehicle_type === 'Gasoline' ? 'primary' : data.vehicle_type === 'Diesel' ? 'danger' : 'success'} rounded-circle d-flex justify-content-center align-items-center`;
+            
+            // Set status badge
+            const statusBadge = document.getElementById('status-badge');
+            let badgeClass = '';
+            if (data.status === 'Pending') badgeClass = 'bg-warning';
+            else if (data.status === 'Active') badgeClass = 'bg-success';
+            else if (data.status === 'Completed') badgeClass = 'bg-dark';
+            else if (data.status === 'Cancelled') badgeClass = 'bg-danger';
+            
+            statusBadge.className = `py-3 px-4 d-inline-block rounded-pill mb-2 ${badgeClass} text-white`;
+            statusBadge.textContent = data.status;
+            
+            // Show/hide action sections based on status
+            document.getElementById('detail-actions-pending').style.display = 'none';
+            document.getElementById('detail-actions-active').style.display = 'none';
+            document.getElementById('detail-actions-completed').style.display = 'none';
+            document.getElementById('detail-actions-cancelled').style.display = 'none';
+            
+            if (data.status === 'Pending') {
+                document.getElementById('detail-actions-pending').style.display = 'block';
+            } else if (data.status === 'Active') {
+                document.getElementById('detail-actions-active').style.display = 'block';
+            } else if (data.status === 'Completed') {
+                document.getElementById('detail-actions-completed').style.display = 'block';
+            } else if (data.status === 'Cancelled') {
+                document.getElementById('detail-actions-cancelled').style.display = 'block';
+            }
+            
+            // Set up action button event listeners
+            document.getElementById('detail-approve').onclick = function() {
+                processReservationAction('activate', data.id);
+            };
+            
+            document.getElementById('detail-cancel').onclick = function() {
+                if(confirm('Are you sure you want to cancel this reservation?')) {
+                    processReservationAction('cancel', data.id);
+                }
+            };
+            
+            document.getElementById('detail-complete').onclick = function() {
+                if(confirm('Are you sure you want to mark this reservation as completed?')) {
+                    processReservationAction('complete', data.id);
+                }
+            };
+            
+            document.getElementById('detail-cancel-active').onclick = function() {
+                if(confirm('Are you sure you want to cancel this active reservation?')) {
+                    processReservationAction('cancel', data.id);
+                }
+            };
+            
+            document.getElementById('detail-reactivate').onclick = function() {
+                if(confirm('Are you sure you want to reactivate this cancelled reservation?')) {
+                    processReservationAction('reactivate', data.id);
+                }
+                return false;
+            };
+            
+            document.getElementById('detail-edit-link').href = `/admin/edit-reservation/${data.id}`;
+        }
+        
+        function processReservationAction(action, id) {
+            fetch('/api/admin/reservation-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    action: action,
+                    reservation_id: id
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error occurred'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing your request.');
+            });
+        }
+        
+        // Export functionality
+        document.getElementById('exportAll').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('exportFiltered').checked = false;
+                document.getElementById('exportSelected').checked = false;
+            }
+        });
+        
+        document.getElementById('exportFiltered').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('exportAll').checked = false;
+                document.getElementById('exportSelected').checked = false;
+            }
+        });
+        
+        document.getElementById('exportSelected').addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('exportAll').checked = false;
+                document.getElementById('exportFiltered').checked = false;
+            }
+        });
+        
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            // Get form data
+            const format = document.querySelector('input[name="exportFormat"]:checked').value;
+            const exportAll = document.getElementById('exportAll').checked;
+            const exportSelected = document.getElementById('exportSelected').checked;
+            
+            // Selected fields
+            const fields = [];
+            if (document.getElementById('fieldUser').checked) fields.push('user');
+            if (document.getElementById('fieldSlot').checked) fields.push('slot');
+            if (document.getElementById('fieldStart').checked) fields.push('start_time');
+            if (document.getElementById('fieldEnd').checked) fields.push('end_time');
+            if (document.getElementById('fieldStatus').checked) fields.push('status');
+            if (document.getElementById('fieldDuration').checked) fields.push('duration');
+            if (document.getElementById('fieldVehicleType').checked) fields.push('vehicle_type');
+            if (document.getElementById('fieldCreated').checked) fields.push('created_at');
+            
+            if (fields.length === 0) {
+                alert('Please select at least one field to export');
+                return;
+            }
+            
+            // Show loading spinner
+            const exportBtnOriginal = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting...';
+            this.disabled = true;
+            
+            // Construct URL with query params
+            let url = `/api/admin/export-reservations?format=${format}`;
+            
+            // Add export type
+            if (exportSelected) {
+                const selectedIds = Array.from(document.querySelectorAll('.reservation-select:checked'))
+                    .map(cb => cb.value);
+                    
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one reservation to export');
+                    this.innerHTML = exportBtnOriginal;
+                    this.disabled = false;
+                    return;
+                }
+                
+                url += `&type=selected&ids=${selectedIds.join(',')}`;
+            } else if (!exportAll) {
+                url += '&type=filtered';
+                
+                // Add current filters to URL
+                const currentUrl = new URL(window.location.href);
+                for (const [key, value] of currentUrl.searchParams.entries()) {
+                    if (key !== 'page') {
+                        url += `&${key}=${encodeURIComponent(value)}`;
+                    }
+                }
+            } else {
+                url += '&type=all';
+            }
+            
+            // Add selected fields
+            url += `&fields=${fields.join(',')}`;
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+            modal.hide();
+            
+            const btnRef = this;
+            
+            fetch(url, { method: 'GET' })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Export failed');
+                        });
+                    }
+                    
+                    const contentType = response.headers.get('content-type');
+                    
+                    // If it's JSON, it's likely an error response
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Export failed');
+                        });
+                    }
+                    
+                    // For HTML content (PDF fallback), open in a new tab
+                    if (contentType && contentType.includes('text/html')) {
+                        // For PDF exports that fall back to HTML, open in a new tab with the same URL
+                        const newWindow = window.open(url, '_blank');
+                        if (!newWindow) {
+                            alert('Please allow popups for this site to view the PDF export');
+                        }
+                        
+                        // Reset button state
+                        btnRef.innerHTML = exportBtnOriginal;
+                        btnRef.disabled = false;
+                        return null; // Skip blob handling
+                    }
+                    
+                    return response.blob();
+                })
+                .then(blob => {
+                    if (!blob) return; // Skip if we opened a new tab (for HTML)
+                    
+                    // Create download link and trigger download
+                    const extension = format === 'excel' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'csv';
+                    const filename = `reservations_export_${new Date().toISOString().split('T')[0]}.${extension}`;
+                    
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = URL.createObjectURL(blob);
+                    downloadLink.download = filename;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    
+                    // Reset button
+                    btnRef.innerHTML = exportBtnOriginal;
+                    btnRef.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Export error:', error);
+                    alert(`${error.message || 'Export failed'}. Try using CSV format or run the install_dependencies.py script to install the required packages.`);
+                    btnRef.innerHTML = exportBtnOriginal;
+                    btnRef.disabled = false;
+                });
+        });
+        
+    });
+</script>
+{% endblock %}

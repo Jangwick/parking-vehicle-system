@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Error - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Error</h4>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-exclamation-circle text-danger fa-4x"></i>
+                    </div>
+                    
+                    <h5 class="text-center mb-4">{{ error }}</h5>
+                    
+                    <div class="text-center">
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="fas fa-home me-1"></i> Return to Homepage
+                        </a>
+                        <button onclick="window.history.back()" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-arrow-left me-1"></i> Go Back
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

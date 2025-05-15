@@ -1,0 +1,938 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body"> 
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-user-shield fa-4x text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h1 class="mb-0">Admin Dashboard</h1>
+                            <p class="text-muted">Welcome back, {{ current_user.name }}</p>
+                        </div>
+                        <div>
+                            <button id="refresh-dashboard" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-sync-alt"></i> Refresh Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="dashboard-stat stat-users">
+                <i class="fas fa-users fa-3x mb-3"></i>
+                <h2 id="users-count">{{ total_users }}</h2>
+                <p class="mb-0">Total Users</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="dashboard-stat stat-reservations">
+                <i class="fas fa-calendar-check fa-3x mb-3"></i>
+                <h2 id="active-reservations">{{ active_reservations }}</h2>
+                <p class="mb-0">Active Reservations</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="dashboard-stat stat-slots">
+                <i class="fas fa-parking fa-3x mb-3"></i>
+                <h2 id="total-slots">{{ total_slots }}</h2>
+                <p class="mb-0">Total Parking Slots</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="dashboard-stat stat-available">
+                <i class="fas fa-check-circle fa-3x mb-3"></i>
+                <h2 id="available-slots">{{ available_slots }}</h2>
+                <p class="mb-0">Available Slots</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Approvals Section -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0"><i class="fas fa-clock me-2"></i> Pending Approvals</h4>
+                        <span class="badge bg-warning" id="pending-count">0</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="pending-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Slot</th>
+                                    <th>Time Requested</th>
+                                    <th>Duration</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pending-approvals">
+                                <tr>
+                                    <td colspan="5" class="text-center">Loading pending approvals...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Row -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Reservation Analytics</h4>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-primary active" id="view-weekly">Weekly</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="view-monthly">Monthly</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <canvas id="reservationChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h4 class="mb-0">Slot Utilization</h4>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center">
+                    <canvas id="slotUtilizationChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Vehicle Distribution</h4>
+                </div>
+                <div class="card-body">
+                    <canvas id="vehicleChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity Section -->
+    <div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Recent Activity</h4>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-activity">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="view-all-activity">
+                        View All
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="activity-loading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading activity data...</p>
+                </div>
+                <div id="activity-error" class="alert alert-danger d-none">
+                    <i class="fas fa-exclamation-circle me-2"></i> 
+                    Error loading activity data. <button class="btn btn-sm btn-outline-danger ms-2" id="retry-activity">Retry</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-activities">
+                            <!-- Activity data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-activity" class="alert alert-info d-none">
+                    <i class="fas fa-info-circle me-2"></i> No recent activity to display.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- System Status Row -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-server me-2"></i> System Status</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="system-status-card bg-light p-3 rounded">
+                                <h5>Database</h5>
+                                <div class="d-flex align-items-center">
+                                    <div class="status-indicator bg-success rounded-circle me-2"></div>
+                                    <span>Operational</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="system-status-card bg-light p-3 rounded">
+                                <h5>Email Service</h5>
+                                <div class="d-flex align-items-center">
+                                    <div class="status-indicator bg-success rounded-circle me-2"></div>
+                                    <span>Operational</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="system-status-card bg-light p-3 rounded">
+                                <h5>Payment Gateway</h5>
+                                <div class="d-flex align-items-center">
+                                    <div class="status-indicator bg-success rounded-circle me-2"></div>
+                                    <span>Operational</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="system-status-card bg-light p-3 rounded">
+                                <h5>Backup Service</h5>
+                                <div class="d-flex align-items-center">
+                                    <div id="backup-status-indicator" class="status-indicator bg-warning rounded-circle me-2"></div>
+                                    <span id="backup-status">Last: <span id="backup-date">3 days ago</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Row -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Quick Actions</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="d-grid">
+                                <a href="{{ url_for('admin_users') }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-users"></i> Manage Users
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-grid">
+                                <a href="{{ url_for('admin_reservations') }}" class="btn btn-outline-warning">
+                                    <i class="fas fa-calendar-alt"></i> Manage Reservations
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-grid">
+                                <a href="{{ url_for('admin_slots') }}" class="btn btn-outline-success">
+                                    <i class="fas fa-parking"></i> Manage Parking Slots
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-grid">
+                                <a href="{{ url_for('admin_settings') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-cog"></i> System Settings
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-stat {
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        transition: all 0.3s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        height: 100%;
+    }
+    
+    .dashboard-stat:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .stat-users {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        color: white;
+    }
+    
+    .stat-reservations {
+        background: linear-gradient(135deg, #2ecc71, #27ae60);
+        color: white;
+    }
+    
+    .stat-slots {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+    }
+    
+    .stat-available {
+        background: linear-gradient(135deg, #f39c12, #d35400);
+        color: white;
+    }
+    
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+    }
+    
+    .system-status-card {
+        transition: all 0.3s;
+    }
+    
+    .system-status-card:hover {
+        background-color: #f8f9fa !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Charts
+        let reservationChart, vehicleChart, slotUtilizationChart;
+        initializeCharts();
+        loadPendingApprovals();
+        
+        // Load recent activity data immediately on page load
+        loadRecentActivity();
+
+        // Refresh dashboard data
+        document.getElementById('refresh-dashboard').addEventListener('click', function() {
+            refreshDashboardData();
+        });
+
+        // Toggle between weekly and monthly view
+        document.getElementById('view-weekly').addEventListener('click', function() {
+            document.getElementById('view-monthly').classList.remove('active');
+            this.classList.add('active');
+            fetchReservationData('weekly');
+        });
+
+        document.getElementById('view-monthly').addEventListener('click', function() {
+            document.getElementById('view-weekly').classList.remove('active');
+            this.classList.add('active');
+            fetchReservationData('monthly');
+        });
+
+        // Function to initialize charts
+        function initializeCharts() {
+            // Reservation Chart
+            const reservationCtx = document.getElementById('reservationChart').getContext('2d');
+            reservationChart = new Chart(reservationCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Loading...'],
+                    datasets: [{
+                        label: 'Reservations',
+                        data: [0],
+                        backgroundColor: '#3498db'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Vehicle Distribution Chart
+            const vehicleCtx = document.getElementById('vehicleChart').getContext('2d');
+            vehicleChart = new Chart(vehicleCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Loading...'],
+                    datasets: [{
+                        data: [1],
+                        backgroundColor: ['#3498db']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Slot Utilization Chart (new)
+            const slotUtilizationCtx = document.getElementById('slotUtilizationChart').getContext('2d');
+            slotUtilizationChart = new Chart(slotUtilizationCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Regular', 'Electric', 'Handicap'],
+                    datasets: [{
+                        data: [65, 25, 10],
+                        backgroundColor: ['#3498db', '#2ecc71', '#f1c40f'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Slot Type Distribution',
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+
+            // Fetch initial data
+            fetchReservationData('weekly');
+            fetchVehicleDistribution();
+            fetchRecentActivities();
+            
+            // Also fetch slot utilization data
+            fetchSlotUtilization();
+        }
+        
+        // Load pending approvals
+        function loadPendingApprovals() {
+            fetch('/api/admin/pending-approvals')
+                .then(response => response.json())
+                .then(data => {
+                    updatePendingApprovals(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching pending approvals:', error);
+                    document.getElementById('pending-approvals').innerHTML = 
+                        `<tr><td colspan="5" class="text-center text-danger">
+                            Error loading pending approvals
+                        </td></tr>`;
+                });
+        }
+        
+        // Update pending approvals table
+        function updatePendingApprovals(data) {
+            const pendingTable = document.getElementById('pending-approvals');
+            const pendingCount = document.getElementById('pending-count');
+            
+            pendingCount.textContent = data.length;
+            
+            if (data.length === 0) {
+                pendingTable.innerHTML = 
+                    `<tr><td colspan="5" class="text-center">
+                        No pending approvals at this time
+                    </td></tr>`;
+                return;
+            }
+            
+            let html = '';
+            data.forEach(item => {
+                html += `
+                <tr>
+                    <td>${item.user_name}</td>
+                    <td>${item.slot_number} (${item.slot_type})</td>
+                    <td>${item.requested_time}</td>
+                    <td>${item.duration}</td>
+                    <td>
+                        <button class="btn btn-sm btn-success me-1 approve-btn" data-id="${item.id}">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                        <button class="btn btn-sm btn-danger reject-btn" data-id="${item.id}">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    </td>
+                </tr>
+                `;
+            });
+            
+            pendingTable.innerHTML = html;
+            
+            // Add event listeners to approve/reject buttons
+            document.querySelectorAll('.approve-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    approveReservation(this.dataset.id);
+                });
+            });
+            
+            document.querySelectorAll('.reject-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    rejectReservation(this.dataset.id);
+                });
+            });
+        }
+        
+        // Function to approve reservation
+        function approveReservation(id) {
+            processReservationAction('approve', id);
+        }
+        
+        // Function to reject reservation
+        function rejectReservation(id) {
+            if (confirm('Are you sure you want to reject this reservation?')) {
+                processReservationAction('reject', id);
+            }
+        }
+        
+        // Process reservation action (approve/reject)
+        function processReservationAction(action, id) {
+            fetch('/api/admin/reservation-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    action: action,
+                    reservation_id: id
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadPendingApprovals(); // Refresh approvals list
+                    refreshDashboardData(); // Refresh dashboard data
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error occurred'));
+                }
+            })
+            .catch(error => {
+                console.error('Error processing reservation action:', error);
+                alert('An error occurred while processing your request.');
+            });
+        }
+        
+        // Function to fetch reservation data
+        function fetchReservationData(period) {
+            fetch(`/api/admin/reservations-data?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateReservationChart(data.labels, data.data);
+                })
+                .catch(error => {
+                    console.error('Error fetching reservation data:', error);
+                });
+        }
+
+        // Function to fetch vehicle distribution data
+        function fetchVehicleDistribution() {
+            fetch('/api/admin/vehicle-distribution')
+                .then(response => response.json())
+                .then(data => {
+                    updateVehicleChart(data.labels, data.data);
+                })
+                .catch(error => {
+                    console.error('Error fetching vehicle distribution:', error);
+                });
+        }
+
+        // Function to fetch recent activities
+        function fetchRecentActivities() {
+            fetch('/api/admin/recent-activities')
+                .then(response => response.json())
+                .then(data => {
+                    updateRecentActivities(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching recent activities:', error);
+                });
+        }
+
+        // Function to update reservation chart
+        function updateReservationChart(labels, data) {
+            reservationChart.data.labels = labels;
+            reservationChart.data.datasets[0].data = data;
+            reservationChart.update();
+        }
+
+        // Function to update vehicle distribution chart
+        function updateVehicleChart(labels, data) {
+            vehicleChart.data.labels = labels;
+            vehicleChart.data.datasets[0].data = data;
+            vehicleChart.data.datasets[0].backgroundColor = [
+                '#3498db',  // Gasoline - Blue
+                '#e74c3c',  // Diesel - Red
+                '#2ecc71'   // Electric - Green
+            ];
+            vehicleChart.update();
+        }
+
+        // Function to update recent activities
+        function updateRecentActivities(activities) {
+            const activitiesContainer = document.getElementById('recent-activities');
+            
+            if (activities.length === 0) {
+                activitiesContainer.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center">No recent activities</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            activities.forEach(activity => {
+                html += `
+                    <tr>
+                        <td>${activity.user_name}</td>
+                        <td>${activity.action}</td>
+                        <td>${activity.details}</td>
+                        <td>${activity.timestamp}</td>
+                    </tr>
+                `;
+            });
+            
+            activitiesContainer.innerHTML = html;
+        }
+
+        // Function to fetch slot utilization
+        function fetchSlotUtilization() {
+            fetch('/api/admin/slot-utilization')
+                .then(response => response.json())
+                .then(data => {
+                    updateSlotUtilizationChart(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching slot utilization:', error);
+                });
+        }
+        
+        // Function to update slot utilization chart
+        function updateSlotUtilizationChart(data) {
+            slotUtilizationChart.data.labels = data.labels;
+            slotUtilizationChart.data.datasets[0].data = data.data;
+            slotUtilizationChart.update();
+        }
+
+        // Function to refresh all dashboard data
+        function refreshDashboardData() {
+            // Add spinner to refresh button
+            const refreshBtn = document.getElementById('refresh-dashboard');
+            const originalContent = refreshBtn.innerHTML;
+            refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Refreshing...';
+            refreshBtn.disabled = true;
+
+            // Fetch dashboard stats
+            fetch('/api/admin/dashboard-stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('users-count').textContent = data.total_users;
+                    document.getElementById('active-reservations').textContent = data.active_reservations;
+                    document.getElementById('total-slots').textContent = data.total_slots;
+                    document.getElementById('available-slots').textContent = data.available_slots;
+                })
+                .catch(error => {
+                    console.error('Error fetching dashboard stats:', error);
+                });
+
+            // Re-fetch all chart data
+            const activeBtn = document.querySelector('.btn-group .active');
+            const period = activeBtn.id === 'view-weekly' ? 'weekly' : 'monthly';
+            
+            fetchReservationData(period);
+            fetchVehicleDistribution();
+            fetchRecentActivities();
+            
+            // Also refresh these new data points
+            loadPendingApprovals();
+            fetchSlotUtilization();
+            
+            // Check backup status
+            checkBackupStatus();
+
+            // Restore button after 1 second
+            setTimeout(() => {
+                refreshBtn.innerHTML = originalContent;
+                refreshBtn.disabled = false;
+            }, 1000);
+        }
+
+        // Check backup status
+        function checkBackupStatus() {
+            fetch('/api/admin/backup-status')
+                .then(response => response.json())
+                .then(data => {
+                    const indicator = document.getElementById('backup-status-indicator');
+                    const date = document.getElementById('backup-date');
+                    
+                    date.textContent = data.last_backup_date;
+                    
+                    // Set status color based on last backup date
+                    if (data.days_since_backup > 7) {
+                        indicator.className = 'status-indicator bg-danger rounded-circle me-2';
+                    } else if (data.days_since_backup > 3) {
+                        indicator.className = 'status-indicator bg-warning rounded-circle me-2';
+                    } else {
+                        indicator.className = 'status-indicator bg-success rounded-circle me-2';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking backup status:', error);
+                });
+        }
+
+        // Auto-refresh every 5 minutes
+        setInterval(refreshDashboardData, 300000);
+
+        // Check backup status initially
+        checkBackupStatus();
+
+        // Refresh activity data button
+        document.getElementById('refresh-activity').addEventListener('click', function() {
+            const button = this;
+            const originalHtml = button.innerHTML;
+            
+            button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Refreshing...';
+            button.disabled = true;
+            
+            loadRecentActivity().finally(() => {
+                setTimeout(() => {
+                    button.innerHTML = originalHtml;
+                    button.disabled = false;
+                }, 500);
+            });
+        });
+        
+        // Retry button in error message
+        document.getElementById('retry-activity').addEventListener('click', function() {
+            loadRecentActivity();
+        });
+        
+        // View all activity button
+        document.getElementById('view-all-activity').addEventListener('click', function() {
+            // Replace reference to non-existent endpoint
+            // Instead, scroll to the activity section
+            document.querySelector('.row.mb-4:has(#activity-section)').scrollIntoView({
+                behavior: 'smooth'
+            });
+            
+            // Load more activities (fetch more items)
+            const loadingEl = document.getElementById('activity-loading');
+            const errorEl = document.getElementById('activity-error');
+            const noActivityEl = document.getElementById('no-activity');
+            
+            loadingEl.classList.remove('d-none');
+            errorEl.classList.add('d-none');
+            noActivityEl.classList.add('d-none');
+            
+            // Load more activities (e.g., 20 instead of default)
+            fetch('/api/admin/recent-activity?limit=20')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Server returned ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Same processing as in loadRecentActivity function
+                    loadingEl.classList.add('d-none');
+                    // Use the same rendering logic from loadRecentActivity
+                    renderActivities(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching activity data:', error);
+                    loadingEl.classList.add('d-none');
+                    errorEl.classList.remove('d-none');
+                });
+        });
+
+        // Function to render activities (extracted from loadRecentActivity)
+        function renderActivities(data) {
+            const activityTable = document.getElementById('recent-activities');
+            const noActivityEl = document.getElementById('no-activity');
+            
+            // Check if we have activity data
+            if (!data || !Array.isArray(data) || data.length === 0) {
+                noActivityEl.classList.remove('d-none');
+                activityTable.innerHTML = '';
+                return;
+            }
+            
+            // Render activity data
+            activityTable.innerHTML = '';
+            data.forEach(activity => {
+                // Determine icon and color based on action type
+                let icon, badgeClass;
+                switch(activity.action_type) {
+                    case 'reservation_created':
+                        icon = 'fa-calendar-plus';
+                        badgeClass = 'bg-success';
+                        break;
+                    case 'reservation_cancelled':
+                        icon = 'fa-calendar-times';
+                        badgeClass = 'bg-danger';
+                        break;
+                    case 'user_login':
+                        icon = 'fa-sign-in-alt';
+                        badgeClass = 'bg-info';
+                        break;
+                    case 'user_registered':
+                        icon = 'fa-user-plus';
+                        badgeClass = 'bg-primary';
+                        break;
+                    case 'admin_action':
+                        icon = 'fa-user-shield';
+                        badgeClass = 'bg-warning';
+                        break;
+                    default:
+                        icon = 'fa-history';
+                        badgeClass = 'bg-secondary';
+                }
+                
+                // Format time
+                const activityTime = formatTimeAgo(new Date(activity.timestamp));
+                
+                // Create row
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="avatar me-2 bg-${activity.is_admin ? 'warning' : 'primary'} rounded-circle d-flex justify-content-center align-items-center" style="width:32px; height:32px; color:white">
+                                ${activity.user_name ? activity.user_name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                            <div>
+                                <div>${activity.user_name || 'Unknown User'}</div>
+                                <div class="text-muted small">${activity.is_admin ? 'Admin' : 'User'}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge ${badgeClass}">
+                            <i class="fas ${icon} me-1"></i> ${formatActionType(activity.action_type)}
+                        </span>
+                    </td>
+                    <td>${activity.details}</td>
+                    <td>
+                        <span title="${activity.timestamp}">${activityTime}</span>
+                    </td>
+                `;
+                
+                activityTable.appendChild(row);
+            });
+        }
+
+        // Update the loadRecentActivity function to use renderActivities
+        function loadRecentActivity() {
+            const loadingEl = document.getElementById('activity-loading');
+            const errorEl = document.getElementById('activity-error');
+            const noActivityEl = document.getElementById('no-activity');
+            
+            // Show loading, hide other elements
+            loadingEl.classList.remove('d-none');
+            errorEl.classList.add('d-none');
+            noActivityEl.classList.add('d-none');
+            
+            // Fetch activity data from API
+            return fetch('/api/admin/recent-activity')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Server returned ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    loadingEl.classList.add('d-none');
+                    renderActivities(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching activity data:', error);
+                    loadingEl.classList.add('d-none');
+                    errorEl.classList.remove('d-none');
+                });
+        }
+
+        // Helper function to format action types for display
+        function formatActionType(actionType) {
+            // Convert snake_case to Title Case With Spaces
+            return actionType
+                .replace(/_/g, ' ')
+                .replace(/\w\S*/g, txt => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+        }
+        
+        // Helper function to format timestamps as relative time
+        function formatTimeAgo(date) {
+            const now = new Date();
+            const diffSeconds = Math.floor((now - date) / 1000);
+            
+            if (diffSeconds < 60) {
+                return 'Just now';
+            }
+            
+            const diffMinutes = Math.floor(diffSeconds / 60);
+            if (diffMinutes < 60) {
+                return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`;
+            }
+            
+            const diffHours = Math.floor(diffMinutes / 60);
+            if (diffHours < 24) {
+                return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+            }
+            
+            const diffDays = Math.floor(diffHours / 24);
+            if (diffDays < 7) {
+                return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+            }
+            
+            // For older activities, show the actual date
+            return date.toLocaleDateString(undefined, { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    });
+</script>
+{% endblock %}

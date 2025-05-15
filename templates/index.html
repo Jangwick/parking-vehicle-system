@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8 offset-md-2 text-center">
+                <h1 class="display-4">Welcome to ParkEase</h1>
+                <p class="lead">Your smart parking reservation solution</p>
+                {% if not current_user.is_authenticated %}
+                    <div class="mt-4">
+                        <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg me-2">Login</a>
+                        <a href="{{ url_for('register') }}" class="btn btn-outline-light btn-lg">Register</a>
+                    </div>
+                {% else %}
+                    <div class="mt-4">
+                        <a href="{{ url_for('user_dashboard' if not current_user.is_admin else 'admin_dashboard') }}" class="btn btn-primary btn-lg">Go to Dashboard</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features-section py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Why Choose ParkEase?</h2>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-clock fa-3x mb-3 text-primary"></i>
+                        <h4 class="card-title">Save Time</h4>
+                        <p class="card-text">Reserve your parking spot in advance and avoid driving around looking for a space.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-car-battery fa-3x mb-3 text-primary"></i>
+                        <h4 class="card-title">EV Friendly</h4>
+                        <p class="card-text">Special slots for electric vehicles with charging stations available.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-mobile-alt fa-3x mb-3 text-primary"></i>
+                        <h4 class="card-title">Easy to Use</h4>
+                        <p class="card-text">User-friendly interface to quickly make, view, and manage your reservations.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="how-it-works py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">How It Works</h2>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="display-4 mb-3">1</div>
+                        <h5>Create Account</h5>
+                        <p>Register with your details and vehicle type</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="display-4 mb-3">2</div>
+                        <h5>Find a Spot</h5>
+                        <p>Browse available parking slots</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="display-4 mb-3">3</div>
+                        <h5>Make Reservation</h5>
+                        <p>Select your desired time and slot</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="display-4 mb-3">4</div>
+                        <h5>Park with Ease</h5>
+                        <p>Arrive and park at your reserved spot</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

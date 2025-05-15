@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Reservation - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Edit Reservation</h2>
+            <p class="text-muted">Modify your reservation details</p>
+            <hr>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h4 class="mb-0">Reservation Information</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('edit_reservation', id=reservation.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i> You are editing reservation for 
+                            <strong>Slot {{ reservation.parking_slot.slot_number }} ({{ reservation.parking_slot.slot_type }})</strong>.
+                            Only the time can be modified.
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="start_time" class="form-label">Start Time</label>
+                                <input type="datetime-local" class="form-control" id="start_time" name="start_time" 
+                                       value="{{ reservation.start_time.strftime('%Y-%m-%dT%H:%M') }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="end_time" class="form-label">End Time</label>
+                                <input type="datetime-local" class="form-control" id="end_time" name="end_time" 
+                                       value="{{ reservation.end_time.strftime('%Y-%m-%dT%H:%M') }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i> Please note that editing this reservation may 
+                            result in conflicts with other reservations. The system will check for conflicts automatically.
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{{ url_for('view_reservations') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i> Back to Reservations
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set minimum datetime for inputs
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        
+        const minDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+        
+        document.getElementById('start_time').min = minDateTime;
+        document.getElementById('end_time').min = minDateTime;
+        
+        // Validate form before submission
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(e) {
+            const startTime = new Date(document.getElementById('start_time').value);
+            const endTime = new Date(document.getElementById('end_time').value);
+            
+            if (endTime <= startTime) {
+                e.preventDefault();
+                alert('End time must be after start time');
+            }
+        });
+    });
+</script>
+{% endblock %}

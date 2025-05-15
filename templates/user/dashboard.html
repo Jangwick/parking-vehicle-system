@@ -1,0 +1,1059 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - ParkEase{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <!-- Welcome Card -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-user-circle fa-4x text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h1 class="mb-0">Welcome, {{ current_user.name }}</h1>
+                            <p class="text-muted">{{ current_user.email }} | Vehicle: {{ current_user.vehicle_type }}</p>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('make_reservation') }}" class="btn btn-primary">
+                                <i class="fas fa-plus-circle"></i> New Reservation
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats & Info Row -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="dashboard-stat user-stat-active">
+                <i class="fas fa-calendar-check fa-3x mb-3"></i>
+                <h2 id="active-count">{{ active_count|default(0) }}</h2>
+                <p class="mb-0">Active Reservations</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="dashboard-stat user-stat-upcoming">
+                <i class="fas fa-clock fa-3x mb-3"></i>
+                <h2 id="upcoming-count">{{ upcoming_count|default(0) }}</h2>
+                <p class="mb-0">Upcoming Reservations</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="dashboard-stat user-stat-total">
+                <i class="fas fa-history fa-3x mb-3"></i>
+                <h2 id="total-count">{{ total_count|default(0) }}</h2>
+                <p class="mb-0">Total Reservations</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enhance the Notifications section with better UI and functionality -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card border-info">
+                <div class="card-header bg-info bg-opacity-10">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0"><i class="fas fa-bell me-2"></i> Notifications</h4>
+                        <div>
+                            <span class="badge bg-info" id="notification-count">0</span>
+                            <div class="btn-group ms-2">
+                                <button type="button" class="btn btn-sm btn-outline-info" id="refresh-notifications">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="mark-all-read">
+                                    <i class="fas fa-check-double"></i> Mark All Read
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="notification-container">
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading notifications...</p>
+                        </div>
+                    </div>
+                    <div id="notification-pagination" class="mt-3 text-center d-none">
+                        <button class="btn btn-sm btn-outline-primary" id="load-more-notifications">Load More</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Reservations -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Your Active Reservations</h4>
+                </div>
+                <div class="card-body">
+                    {% if reservations %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Slot</th>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for reservation in reservations %}
+                                        <tr>
+                                            <td>{{ reservation.parking_slot.slot_number }}</td>
+                                            <td>{{ reservation.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>{{ reservation.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ 'warning' if reservation.status == 'Pending' else 'success' if reservation.status == 'Active' else 'danger' }}">
+                                                    {{ reservation.status }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if reservation.status == 'Pending' %}
+                                                    <form method="POST" action="{{ url_for('edit_reservation', id=reservation.id) }}">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">Edit</button>
+                                                    </form>
+                                                    <form method="POST" action="{{ url_for('cancel_reservation', id=reservation.id) }}" onsubmit="return confirm('Are you sure you want to cancel this reservation?')">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                                                    {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info mb-0">
+                            <p class="mb-0">You don't have any active reservations. <a href="{{ url_for('make_reservation') }}">Make a reservation now</a>.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h4 class="mb-0">Quick Actions</h4>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('make_reservation') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-car"></i> Make a Reservation
+                        </a>
+                        <a href="{{ url_for('view_reservations') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-history"></i> View All Reservations
+                        </a>
+                        <a href="{{ url_for('availability') }}" class="btn btn-outline-success">
+                            <i class="fas fa-search"></i> Check Availability
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Current Availability</h4>
+                        <span id="last-updated" class="text-muted small">Updated: Just now</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded position-relative">
+                                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success rounded-circle" id="regular-indicator">
+                                    <span class="visually-hidden">Regular slots available</span>
+                                </span>
+                                <h1 id="regular-count">?</h1>
+                                <p class="mb-0">Regular Slots</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded position-relative">
+                                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-success rounded-circle" id="electric-indicator">
+                                    <span class="visually-hidden">Electric slots available</span>
+                                </span>
+                                <h1 id="electric-count">?</h1>
+                                <p class="mb-0">Electric Slots</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: 75%" 
+                             aria-valuenow="75" aria-valuemin="0" aria-valuemax="100" id="availability-progress">
+                            75% Available
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <a href="{{ url_for('availability') }}" class="btn btn-primary">Check Availability & Reserve</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-history me-2"></i> Recent Activity</h4>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <div id="user-activity-container">
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading activity...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Profile Information -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-user me-2"></i> Your Profile</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center mb-3 mb-md-0">
+                            <div class="avatar bg-primary rounded-circle d-flex justify-content-center align-items-center mx-auto mb-3" style="width:100px; height:100px; color:white; font-size:42px;">
+                                {{ current_user.name[0]|upper }}
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-user me-2"></i> Name:</span>
+                                    <span>{{ current_user.name }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-envelope me-2"></i> Email:</span>
+                                    <span>{{ current_user.email }}</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-car me-2"></i> Vehicle Type:</span>
+                                    <span class="badge bg-{{ 'primary' if current_user.vehicle_type == 'Gasoline' else 'danger' if current_user.vehicle_type == 'Diesel' else 'success' }}">
+                                        {{ current_user.vehicle_type }}
+                                    </span>
+                                </li>
+                            </ul>
+                            <div class="text-end mt-3">
+                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#profileEditModal">
+                                    <i class="fas fa-user-edit me-2"></i> Edit Profile
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-calendar-alt me-2"></i> Reservation Summary</h4>
+                </div>
+                <div class="card-body">
+                    <canvas id="reservationChart" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Edit Modal -->
+<div class="modal fade" id="profileEditModal" tabindex="-1" aria-labelledby="profileEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="profileEditModalLabel">Edit Your Profile</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs" id="profileTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="edit-tab" data-bs-toggle="tab" data-bs-target="#edit-tab-pane" type="button" role="tab">
+                            <i class="fas fa-user-edit me-2"></i>Edit Details
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="password-tab" data-bs-toggle="tab" data-bs-target="#password-tab-pane" type="button" role="tab">
+                            <i class="fas fa-key me-2"></i>Change Password
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content pt-3" id="profileTabsContent">
+                    <!-- Edit Profile Tab -->
+                    <div class="tab-pane fade show active" id="edit-tab-pane" role="tabpanel" tabindex="0">
+                        <form id="profileEditForm" method="POST" action="{{ url_for('user_dashboard') }}">
+                            <input type="hidden" name="action" value="update_profile">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="name" class="form-label">Full Name</label>
+                                    <input type="text" class="form-control" id="name" name="name" value="{{ current_user.name }}" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="email" class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="vehicle_type" class="form-label">Vehicle Type</label>
+                                <select class="form-select" id="vehicle_type" name="vehicle_type">
+                                    <option value="Gasoline" {% if current_user.vehicle_type == 'Gasoline' %}selected{% endif %}>Gasoline</option>
+                                    <option value="Diesel" {% if current_user.vehicle_type == 'Diesel' %}selected{% endif %}>Diesel</option>
+                                    <option value="Electric" {% if current_user.vehicle_type == 'Electric' %}selected{% endif %}>Electric</option>
+                                </select>
+                                <div class="form-text">Certain parking slots may be restricted to specific vehicle types.</div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- Change Password Tab -->
+                    <div class="tab-pane fade" id="password-tab-pane" role="tabpanel" tabindex="0">
+                        <form id="passwordChangeForm" method="POST" action="{{ url_for('user_dashboard') }}">
+                            <input type="hidden" name="action" value="change_password">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
+                            <div class="mb-3">
+                                <label for="current_password" class="form-label">Current Password</label>
+                                <input type="password" class="form-control" id="current_password" name="current_password" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="new_password" class="form-label">New Password</label>
+                                <input type="password" class="form-control" id="new_password" name="new_password" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="confirm_password" class="form-label">Confirm New Password</label>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> For security reasons, you'll be asked to log in again after changing your password.
+                            </div>
+                            
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Update Password</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-stat {
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        transition: all 0.3s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .dashboard-stat:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .user-stat-active {
+        background: linear-gradient(135deg, #3498db, #2980b9);
+        color: white;
+    }
+    
+    .user-stat-upcoming {
+        background: linear-gradient(135deg, #f39c12, #d35400);
+        color: white;
+    }
+    
+    .user-stat-total {
+        background: linear-gradient(135deg, #9b59b6, #8e44ad);
+        color: white;
+    }
+    
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+        border-left: 2px solid #dee2e6;
+        padding-left: 20px;
+    }
+    
+    .timeline-item:last-child {
+        border-left: 2px solid transparent;
+    }
+    
+    .timeline-point {
+        position: absolute;
+        left: -11px;
+        top: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: white;
+        border: 2px solid;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 0.7rem;
+    }
+    
+    .timeline-point-primary {
+        border-color: #3498db;
+        color: #3498db;
+    }
+    
+    .timeline-point-success {
+        border-color: #2ecc71;
+        color: #2ecc71;
+    }
+    
+    .timeline-point-warning {
+        border-color: #f39c12;
+        color: #f39c12;
+    }
+    
+    .timeline-point-danger {
+        border-color: #e74c3c;
+        color: #e74c3c;
+    }
+    
+    .avatar {
+        transition: all 0.3s;
+    }
+    
+    .avatar:hover {
+        transform: scale(1.05);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .notification-item {
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .notification-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .notification-item.unread {
+        background-color: #f8f9fa;
+    }
+
+    .notification-item.unread::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #0d6efd;
+    }
+
+    .notification-actions {
+        display: none;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #eee;
+    }
+
+    .notification-item:hover .notification-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 5px;
+    }
+
+    @keyframes notification-highlight {
+        0% { background-color: rgba(13, 110, 253, 0.2); }
+        100% { background-color: transparent; }
+    }
+
+    .notification-highlight {
+        animation: notification-highlight 2s ease;
+    }
+
+    .notification-empty-state {
+        padding: 40px 20px;
+        text-align: center;
+        color: #6c757d;
+    }
+
+    .notification-time {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch current availability counts
+        fetchAvailability();
+        
+        // Fetch user notifications
+        fetchNotifications();
+        
+        // Fetch user activity
+        fetchUserActivity();
+        
+        // Initialize reservation chart
+        initReservationChart();
+        
+        // Auto refresh data every 1 minute
+        setInterval(function() {
+            fetchAvailability();
+            document.getElementById('last-updated').textContent = 'Updated: Just now';
+        }, 60000);
+        
+        function fetchAvailability() {
+            fetch('/api/slots/available')
+                .then(response => response.json())
+                .then(data => {
+                    let regularCount = 0;
+                    let electricCount = 0;
+                    let totalSlots = {{ total_slots|default(1) }};
+                    
+                    data.forEach(slot => {
+                        if (slot.slot_type === 'Electric') {
+                            electricCount++;
+                        } else {
+                            regularCount++;
+                        }
+                    });
+                    
+                    document.getElementById('regular-count').textContent = regularCount;
+                    document.getElementById('electric-count').textContent = electricCount;
+                    
+                    // Set indicators
+                    document.getElementById('regular-indicator').className = 
+                        `position-absolute top-0 start-100 translate-middle p-1 ${regularCount > 0 ? 'bg-success' : 'bg-danger'} rounded-circle`;
+                        
+                    document.getElementById('electric-indicator').className = 
+                        `position-absolute top-0 start-100 translate-middle p-1 ${electricCount > 0 ? 'bg-success' : 'bg-danger'} rounded-circle`;
+                    
+                    // Update progress bar
+                    let availablePercentage = ((regularCount + electricCount) / totalSlots) * 100;
+                    let progressBar = document.getElementById('availability-progress');
+                    progressBar.style.width = `${availablePercentage}%`;
+                    progressBar.textContent = `${Math.round(availablePercentage)}% Available`;
+                    
+                    if (availablePercentage < 20) {
+                        progressBar.className = 'progress-bar bg-danger';
+                    } else if (availablePercentage < 50) {
+                        progressBar.className = 'progress-bar bg-warning';
+                    } else {
+                        progressBar.className = 'progress-bar bg-success';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching availability:', error);
+                    document.getElementById('regular-count').textContent = '?';
+                    document.getElementById('electric-count').textContent = '?';
+                });
+        }
+        
+        function fetchNotifications() {
+            fetch('/api/user/notifications')
+                .then(response => response.json())
+                .then(data => {
+                    const notificationContainer = document.getElementById('notification-container');
+                    const notificationCount = document.getElementById('notification-count');
+                    
+                    notificationCount.textContent = data.length;
+                    
+                    if (data.length === 0) {
+                        notificationContainer.innerHTML = `
+                            <div class="text-center py-3">
+                                <i class="fas fa-check-circle fa-3x text-success"></i>
+                                <p class="mt-2">No new notifications</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.forEach(notification => {
+                        html += `
+                            <div class="notification-item mb-3 p-3 border-start border-4 ${notification.type === 'success' ? 'border-success' : notification.type === 'warning' ? 'border-warning' : notification.type === 'danger' ? 'border-danger' : 'border-info'} bg-light">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0">
+                                        <i class="fas ${notification.type === 'success' ? 'fa-check-circle text-success' : notification.type === 'warning' ? 'fa-exclamation-triangle text-warning' : notification.type === 'danger' ? 'fa-times-circle text-danger' : 'fa-info-circle text-info'} fa-2x"></i>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        <h5>${notification.title}</h5>
+                                        <p class="mb-1">${notification.message}</p>
+                                        <small class="text-muted">${notification.time}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    notificationContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error fetching notifications:', error);
+                    document.getElementById('notification-container').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i> Error loading notifications
+                        </div>
+                    `;
+                });
+        }
+        
+        function fetchUserActivity() {
+            fetch('/api/user/activity')
+                .then(response => response.json())
+                .then(data => {
+                    const activityContainer = document.getElementById('user-activity-container');
+                    
+                    if (data.length === 0) {
+                        activityContainer.innerHTML = `
+                            <div class="text-center py-3">
+                                <p>No recent activity</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.forEach(activity => {
+                        let iconClass, pointClass;
+                        
+                        switch (activity.type) {
+                            case 'reservation':
+                                iconClass = 'fa-calendar-check';
+                                pointClass = 'timeline-point-primary';
+                                break;
+                            case 'cancellation':
+                                iconClass = 'fa-calendar-times';
+                                pointClass = 'timeline-point-danger';
+                                break;
+                            case 'completed':
+                                iconClass = 'fa-check-circle';
+                                pointClass = 'timeline-point-success';
+                                break;
+                            default:
+                                iconClass = 'fa-calendar';
+                                pointClass = 'timeline-point-warning';
+                        }
+                        
+                        html += `
+                            <div class="timeline-item">
+                                <div class="timeline-point ${pointClass}">
+                                    <i class="fas ${iconClass}"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <h6>${activity.action}</h6>
+                                    <p class="text-muted">${activity.description}</p>
+                                    <small class="text-muted">${activity.time}</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    activityContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error fetching user activity:', error);
+                    document.getElementById('user-activity-container').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-2"></i> Error loading activity
+                        </div>
+                    `;
+                });
+        }
+        
+        function initReservationChart() {
+            fetch('/api/user/reservation-stats')
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = document.getElementById('reservationChart').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['Pending', 'Active', 'Completed', 'Cancelled'],
+                            datasets: [{
+                                data: [
+                                    data.pending || 0, 
+                                    data.active || 0, 
+                                    data.completed || 0, 
+                                    data.cancelled || 0
+                                ],
+                                backgroundColor: [
+                                    '#f39c12', // Warning - Pending
+                                    '#2ecc71', // Success - Active
+                                    '#3498db', // Primary - Completed
+                                    '#e74c3c'  // Danger - Cancelled
+                                ],
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching reservation stats:', error);
+                });
+        }
+
+        // Enhanced notification system
+        let notificationPage = 1;
+        let hasMoreNotifications = false;
+        let notificationRefreshInterval;
+
+        // Initialize notifications
+        fetchNotifications();
+        
+        // Set up auto-refresh every 2 minutes (120000 ms)
+        notificationRefreshInterval = setInterval(function() {
+            fetchNotifications(true);
+        }, 120000);
+        
+        // Refresh button for notifications
+        document.getElementById('refresh-notifications').addEventListener('click', function() {
+            const button = this;
+            const originalHtml = button.innerHTML;
+            
+            button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            button.disabled = true;
+            
+            fetchNotifications().finally(() => {
+                button.innerHTML = originalHtml;
+                button.disabled = false;
+            });
+        });
+        
+        // Mark all as read
+        document.getElementById('mark-all-read').addEventListener('click', function() {
+            const button = this;
+            const originalHtml = button.innerHTML;
+            
+            button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+            button.disabled = true;
+            
+            fetch('/api/user/notifications/read-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    fetchNotifications();
+                    updateUnreadCount(0);
+                } else {
+                    console.error('Error marking notifications as read:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                button.innerHTML = originalHtml;
+                button.disabled = false;
+            });
+        });
+        
+        // Load more notifications
+        document.getElementById('load-more-notifications').addEventListener('click', function() {
+            notificationPage++;
+            fetchNotifications(false, notificationPage);
+        });
+        
+        // Enhanced fetch notifications function
+        function fetchNotifications(checkForNew = false, page = 1) {
+            const endpoint = `/api/user/notifications?page=${page}${checkForNew ? '&check_new=true' : ''}`;
+            
+            if (page === 1) {
+                document.getElementById('notification-container').innerHTML = `
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading notifications...</p>
+                    </div>
+                `;
+            }
+            
+            return fetch(endpoint)
+                .then(response => response.json())
+                .then(data => {
+                    const notificationContainer = document.getElementById('notification-container');
+                    const notificationCount = document.getElementById('notification-count');
+                    const paginationContainer = document.getElementById('notification-pagination');
+                    
+                    // Update unread count
+                    updateUnreadCount(data.unread_count);
+                    
+                    // Handle pagination
+                    hasMoreNotifications = data.has_more;
+                    if (hasMoreNotifications) {
+                        paginationContainer.classList.remove('d-none');
+                    } else {
+                        paginationContainer.classList.add('d-none');
+                    }
+                    
+                    if (page === 1) {
+                        notificationContainer.innerHTML = ''; // Clear existing notifications on first page load
+                        
+                        if (data.notifications.length === 0) {
+                            notificationContainer.innerHTML = `
+                                <div class="notification-empty-state">
+                                    <i class="fas fa-check-circle fa-3x mb-3"></i>
+                                    <h5>All caught up!</h5>
+                                    <p class="mb-0">You don't have any notifications right now.</p>
+                                </div>
+                            `;
+                            return;
+                        }
+                    }
+                    
+                    // Render notifications
+                    data.notifications.forEach((notification, index) => {
+                        const isNew = checkForNew && index < data.new_count;
+                        renderNotification(notification, isNew);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching notifications:', error);
+                    
+                    if (page === 1) {
+                        document.getElementById('notification-container').innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i> Error loading notifications
+                                <button type="button" class="btn btn-sm btn-outline-danger float-end" onclick="fetchNotifications()">Retry</button>
+                            </div>
+                        `;
+                    }
+                });
+        }
+        
+        // Render a single notification
+        function renderNotification(notification, highlight = false) {
+            const container = document.getElementById('notification-container');
+            const notificationElement = document.createElement('div');
+            notificationElement.className = `notification-item mb-3 p-3 border-start border-4 ${notification.type === 'success' ? 'border-success' : notification.type === 'warning' ? 'border-warning' : notification.type === 'danger' ? 'border-danger' : 'border-info'} ${notification.read ? '' : 'unread'}`;
+            notificationElement.dataset.id = notification.id;
+            
+            if (highlight) {
+                notificationElement.classList.add('notification-highlight');
+            }
+            
+            // Format time to be more user-friendly
+            const notificationTime = formatTimeAgo(notification.timestamp);
+            
+            notificationElement.innerHTML = `
+                <div class="d-flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas ${notification.type === 'success' ? 'fa-check-circle text-success' : notification.type === 'warning' ? 'fa-exclamation-triangle text-warning' : notification.type === 'danger' ? 'fa-times-circle text-danger' : 'fa-info-circle text-info'} fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1 ms-3">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="mb-1">${notification.title}</h5>
+                            <span class="notification-time">${notificationTime}</span>
+                        </div>
+                        <p class="mb-1">${notification.message}</p>
+                        ${notification.details ? `<p class="small text-muted">${notification.details}</p>` : ''}
+                        
+                        <div class="notification-actions">
+                            ${notification.action_url ? `<a href="${notification.action_url}" class="btn btn-sm btn-primary">${notification.action_text || 'View'}</a>` : ''}
+                            <button type="button" class="btn btn-sm btn-outline-secondary mark-read-btn" ${notification.read ? 'disabled' : ''}>
+                                ${notification.read ? 'Read' : 'Mark as Read'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add event listeners
+            const markReadBtn = notificationElement.querySelector('.mark-read-btn');
+            if (markReadBtn && !notification.read) {
+                markReadBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    markNotificationAsRead(notification.id);
+                });
+            }
+            
+            // Add click handler to entire notification if there's an action URL
+            if (notification.action_url) {
+                notificationElement.style.cursor = 'pointer';
+                notificationElement.addEventListener('click', function(e) {
+                    if (!e.target.closest('.notification-actions')) {
+                        window.location.href = notification.action_url;
+                        
+                        // Mark as read when clicked
+                        if (!notification.read) {
+                            markNotificationAsRead(notification.id);
+                        }
+                    }
+                });
+            }
+            
+            container.appendChild(notificationElement);
+        }
+        
+        // Mark notification as read
+        function markNotificationAsRead(id) {
+            fetch(`/api/user/notifications/${id}/read`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update UI
+                    const notification = document.querySelector(`.notification-item[data-id="${id}"]`);
+                    if (notification) {
+                        notification.classList.remove('unread');
+                        const markReadBtn = notification.querySelector('.mark-read-btn');
+                        if (markReadBtn) {
+                            markReadBtn.textContent = 'Read';
+                            markReadBtn.disabled = true;
+                        }
+                    }
+                    
+                    // Update counter
+                    const currentCount = parseInt(document.getElementById('notification-count').textContent);
+                    if (currentCount > 0) {
+                        updateUnreadCount(currentCount - 1);
+                    }
+                }
+            })
+            .catch(error => console.error('Error marking notification as read:', error));
+        }
+        
+        // Update unread notification count
+        function updateUnreadCount(count) {
+            const countElement = document.getElementById('notification-count');
+            countElement.textContent = count;
+            
+            // Update header notification indicator if it exists
+            const headerCount = document.getElementById('header-notification-count');
+            if (headerCount) {
+                headerCount.textContent = count;
+                headerCount.style.display = count > 0 ? 'inline-block' : 'none';
+            }
+            
+            // Update favicon or title to indicate unread notifications
+            updateTitleWithNotifications(count);
+        }
+        
+        // Update page title to show notification count
+        function updateTitleWithNotifications(count) {
+            const originalTitle = document.title.replace(/^\(\d+\) /, '');
+            if (count > 0) {
+                document.title = `(${count}) ${originalTitle}`;
+            } else {
+                document.title = originalTitle;
+            }
+        }
+        
+        // Format timestamp to relative time
+        function formatTimeAgo(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+            
+            if (seconds < 60) {
+                return 'Just now';
+            }
+            
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) {
+                return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+            }
+            
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) {
+                return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+            }
+            
+            const days = Math.floor(hours / 24);
+            if (days < 7) {
+                return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+            }
+            
+            // For older notifications, show the actual date
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            return date.toLocaleDateString(undefined, options);
+        }
+        
+        // Get CSRF token from meta tag
+        function getCsrfToken() {
+            return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        }
+        
+        // Clean up interval on page navigation
+        window.addEventListener('beforeunload', function() {
+            if (notificationRefreshInterval) {
+                clearInterval(notificationRefreshInterval);
+            }
+        });
+    });
+</script>
+{% endblock %}

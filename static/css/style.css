@@ -1,0 +1,165 @@
+:root {
+    --primary-color: #3498db;
+    --secondary-color: #2ecc71;
+    --danger-color: #e74c3c;
+    --warning-color: #f39c12;
+    --dark-color: #34495e;
+    --light-color: #ecf0f1;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    padding-top: 56px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    color: var(--primary-color) !important;
+}
+
+.hero-section {
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('/static/img/parking-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    color: white;
+    padding: 100px 0;
+    margin-bottom: 30px;
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    transition: transform 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: bold;
+}
+
+.reservation-card {
+    position: relative;
+}
+
+.reservation-status {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.status-pending {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.status-active {
+    background-color: var(--secondary-color);
+    color: white;
+}
+
+.status-completed {
+    background-color: var(--dark-color);
+    color: white;
+}
+
+.status-cancelled {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.dashboard-stat {
+    text-align: center;
+    padding: 20px;
+    border-radius: 10px;
+    color: white;
+    margin-bottom: 20px;
+}
+
+.stat-users {
+    background-color: var(--primary-color);
+}
+
+.stat-reservations {
+    background-color: var(--warning-color);
+}
+
+.stat-slots {
+    background-color: var(--secondary-color);
+}
+
+.stat-available {
+    background-color: var(--dark-color);
+}
+
+.parking-slot {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.slot-regular {
+    background-color: #bbdefb;
+    border: 2px solid #2196f3;
+}
+
+.slot-electric {
+    background-color: #c8e6c9;
+    border: 2px solid #4caf50;
+}
+
+.parking-slot.selected {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+}
+
+.slot-regular.selected {
+    background-color: #90caf9;
+}
+
+.slot-electric.selected {
+    background-color: #a5d6a7;
+}
+
+.btn-action {
+    margin-right: 5px;
+}
+
+footer {
+    margin-top: auto;
+    padding: 20px 0;
+    background-color: var(--dark-color);
+    color: white;
+}
+
+.table th {
+    background-color: var(--light-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .dashboard-stat {
+        margin-bottom: 15px;
+    }
+    
+    .card-body {
+        padding: 15px;
+    }
+}

@@ -1,0 +1,517 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-md-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h2>System Settings</h2>
+                <p class="text-muted">Configure system-wide parameters and preferences</p>
+            </div>
+            <div>
+                <button id="backup-settings" class="btn btn-outline-primary me-2">
+                    <i class="fas fa-download"></i> Backup Settings
+                </button>
+                <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#restoreModal">
+                    <i class="fas fa-upload"></i> Restore Settings
+                </button>
+            </div>
+        </div>
+        <hr>
+    </div>
+
+    {% if success_message %}
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i> {{ success_message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+
+    {% if error_message %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i> {{ error_message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+
+    <!-- Settings Tabs -->
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="list-group" id="settings-tabs" role="tablist">
+                <a class="list-group-item list-group-item-action active" id="general-tab" data-bs-toggle="list" href="#general" role="tab">
+                    <i class="fas fa-sliders-h me-2"></i> General Settings
+                </a>
+                <a class="list-group-item list-group-item-action" id="reservation-tab" data-bs-toggle="list" href="#reservation" role="tab">
+                    <i class="fas fa-calendar-alt me-2"></i> Reservation Settings
+                </a>
+                <a class="list-group-item list-group-item-action" id="parking-tab" data-bs-toggle="list" href="#parking" role="tab">
+                    <i class="fas fa-parking me-2"></i> Parking Settings
+                </a>
+                <a class="list-group-item list-group-item-action" id="notification-tab" data-bs-toggle="list" href="#notification" role="tab">
+                    <i class="fas fa-bell me-2"></i> Notification Settings
+                </a>
+                <a class="list-group-item list-group-item-action" id="advanced-tab" data-bs-toggle="list" href="#advanced" role="tab">
+                    <i class="fas fa-cogs me-2"></i> Advanced Settings
+                </a>
+            </div>
+        </div>
+
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin_settings') }}" id="settings-form">
+                        {{ form.hidden_tag() if form }}
+                        
+                        <div class="tab-content">
+                            <!-- General Settings Tab -->
+                            <div class="tab-pane fade show active" id="general" role="tabpanel">
+                                <h4 class="card-title mb-4">General Settings</h4>
+                                
+                                <div class="mb-4">
+                                    <label for="system_name" class="form-label">System Name</label>
+                                    <input type="text" class="form-control" id="system_name" name="system_name" 
+                                           value="{{ settings.get('system_name', 'ParkEase Parking System') }}" required>
+                                    <div class="form-text">The name of your parking system (appears in emails and the header)</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="contact_email" class="form-label">Contact Email</label>
+                                    <input type="email" class="form-control" id="contact_email" name="contact_email" 
+                                           value="{{ settings.get('contact_email', 'contact@example.com') }}" required>
+                                    <div class="form-text">Contact email for support inquiries</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="timezone" class="form-label">Default Timezone</label>
+                                    <select class="form-select" id="timezone" name="timezone">
+                                        <option value="UTC" {% if settings.get('timezone') == 'UTC' %}selected{% endif %}>UTC</option>
+                                        <option value="America/New_York" {% if settings.get('timezone') == 'America/New_York' %}selected{% endif %}>Eastern Time (ET)</option>
+                                        <option value="America/Chicago" {% if settings.get('timezone') == 'America/Chicago' %}selected{% endif %}>Central Time (CT)</option>
+                                        <option value="America/Denver" {% if settings.get('timezone') == 'America/Denver' %}selected{% endif %}>Mountain Time (MT)</option>
+                                        <option value="America/Los_Angeles" {% if settings.get('timezone') == 'America/Los_Angeles' %}selected{% endif %}>Pacific Time (PT)</option>
+                                        <option value="Europe/London" {% if settings.get('timezone') == 'Europe/London' %}selected{% endif %}>London (GMT/BST)</option>
+                                        <option value="Europe/Paris" {% if settings.get('timezone') == 'Europe/Paris' %}selected{% endif %}>Central European Time (CET)</option>
+                                        <option value="Asia/Tokyo" {% if settings.get('timezone') == 'Asia/Tokyo' %}selected{% endif %}>Japan Standard Time (JST)</option>
+                                        <option value="Australia/Sydney" {% if settings.get('timezone') == 'Australia/Sydney' %}selected{% endif %}>Australian Eastern Time (AET)</option>
+                                    </select>
+                                    <div class="form-text">Default timezone for the system</div>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="maintenance_mode" name="maintenance_mode" 
+                                           {% if settings.get('maintenance_mode') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="maintenance_mode">Maintenance Mode</label>
+                                    <div class="form-text">When enabled, only administrators can access the system</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Reservation Settings Tab -->
+                            <div class="tab-pane fade" id="reservation" role="tabpanel">
+                                <h4 class="card-title mb-4">Reservation Settings</h4>
+                                
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="min_duration" class="form-label">Minimum Reservation Duration (hours)</label>
+                                        <input type="number" class="form-control" id="min_duration" name="min_duration" 
+                                               value="{{ settings.get('min_duration', '1') }}" min="0.5" max="24" step="0.5" required>
+                                        <div class="form-text">Minimum time allowed for a reservation</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="max_duration" class="form-label">Maximum Reservation Duration (hours)</label>
+                                        <input type="number" class="form-control" id="max_duration" name="max_duration" 
+                                               value="{{ settings.get('max_duration', '24') }}" min="1" max="72" required>
+                                        <div class="form-text">Maximum time allowed for a single reservation</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="max_active_reservations" class="form-label">Max Active Reservations Per User</label>
+                                        <input type="number" class="form-control" id="max_active_reservations" name="max_active_reservations" 
+                                               value="{{ settings.get('max_active_reservations', '3') }}" min="1" max="10" required>
+                                        <div class="form-text">Maximum number of active reservations a user can have</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="reservation_buffer" class="form-label">Buffer Between Reservations (minutes)</label>
+                                        <input type="number" class="form-control" id="reservation_buffer" name="reservation_buffer" 
+                                               value="{{ settings.get('reservation_buffer', '15') }}" min="0" max="60" required>
+                                        <div class="form-text">Buffer time between consecutive reservations of the same slot</div>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="advance_booking_limit" class="form-label">Advance Booking Limit (days)</label>
+                                        <input type="number" class="form-control" id="advance_booking_limit" name="advance_booking_limit" 
+                                               value="{{ settings.get('advance_booking_limit', '30') }}" min="1" max="90" required>
+                                        <div class="form-text">How far in advance users can make reservations</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="cancellation_policy" class="form-label">Late Cancellation Policy (hours)</label>
+                                        <input type="number" class="form-control" id="cancellation_policy" name="cancellation_policy" 
+                                               value="{{ settings.get('cancellation_policy', '2') }}" min="0" max="24" required>
+                                        <div class="form-text">Hours before start time when cancellation is considered late (0 = no restriction)</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="require_approval" name="require_approval" 
+                                           {% if settings.get('require_approval') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="require_approval">Require Admin Approval</label>
+                                    <div class="form-text">When enabled, reservations require administrator approval</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Parking Settings Tab -->
+                            <div class="tab-pane fade" id="parking" role="tabpanel">
+                                <h4 class="card-title mb-4">Parking Settings</h4>
+
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <label for="ev_slots_limit" class="form-label">EV Slots Percentage (%)</label>
+                                        <input type="number" class="form-control" id="ev_slots_limit" name="ev_slots_limit" 
+                                               value="{{ settings.get('ev_slots_limit', '20') }}" min="5" max="50" required>
+                                        <div class="form-text">Percentage of total slots that should be reserved for electric vehicles</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="handicap_slots_limit" class="form-label">Handicap Slots Percentage (%)</label>
+                                        <input type="number" class="form-control" id="handicap_slots_limit" name="handicap_slots_limit" 
+                                               value="{{ settings.get('handicap_slots_limit', '10') }}" min="5" max="20" required>
+                                        <div class="form-text">Percentage of total slots that should be reserved for handicap access</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="operating_hours" class="form-label">Operating Hours</label>
+                                    <select class="form-select" id="operating_hours" name="operating_hours">
+                                        <option value="24/7" {% if settings.get('operating_hours') == '24/7' %}selected{% endif %}>24/7 (Always open)</option>
+                                        <option value="business" {% if settings.get('operating_hours') == 'business' %}selected{% endif %}>Business hours (8AM-6PM)</option>
+                                        <option value="extended" {% if settings.get('operating_hours') == 'extended' %}selected{% endif %}>Extended hours (6AM-10PM)</option>
+                                        <option value="custom" {% if settings.get('operating_hours') == 'custom' %}selected{% endif %}>Custom hours</option>
+                                    </select>
+                                    <div class="form-text">Hours when the parking facility is operational</div>
+                                </div>
+                                
+                                <div id="custom-hours-container" class="mb-4 card p-3 border-secondary" style="{{ 'display:none' if settings.get('operating_hours') != 'custom' else '' }}">
+                                    <h5 class="mb-3">Custom Operating Hours</h5>
+                                    {% for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+                                        <div class="row mb-2 align-items-center">
+                                            <div class="col-md-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input day-checkbox" 
+                                                           type="checkbox" 
+                                                           id="{{ day }}_enabled" 
+                                                           name="{{ day }}_enabled" 
+                                                           data-day="{{ day }}"
+                                                           {% if settings.get(day + '_enabled') == 'true' %}checked{% endif %}>
+                                                    <label class="form-check-label" for="{{ day }}_enabled">
+                                                        {{ day|capitalize }}
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <div class="input-group input-group-sm">
+                                                    <span class="input-group-text">Open</span>
+                                                    <input type="time" 
+                                                           class="form-control day-time" 
+                                                           id="{{ day }}_open" 
+                                                           name="{{ day }}_open"
+                                                           value="{{ settings.get(day + '_open', '08:00') }}"
+                                                           {{ 'disabled' if settings.get(day + '_enabled') != 'true' else '' }}>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-5">
+                                                <div class="input-group input-group-sm">
+                                                    <span class="input-group-text">Close</span>
+                                                    <input type="time" 
+                                                           class="form-control day-time" 
+                                                           id="{{ day }}_close" 
+                                                           name="{{ day }}_close"
+                                                           value="{{ settings.get(day + '_close', '18:00') }}"
+                                                           {{ 'disabled' if settings.get(day + '_enabled') != 'true' else '' }}>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="slot_numbering" class="form-label">Slot Numbering Format</label>
+                                    <select class="form-select" id="slot_numbering" name="slot_numbering">
+                                        <option value="numeric" {% if settings.get('slot_numbering') == 'numeric' %}selected{% endif %}>Numeric (1, 2, 3...)</option>
+                                        <option value="alphanumeric" {% if settings.get('slot_numbering') == 'alphanumeric' %}selected{% endif %}>Alphanumeric (A1, A2...B1, B2...)</option>
+                                        <option value="level-based" {% if settings.get('slot_numbering') == 'level-based' %}selected{% endif %}>Level-based (L1-01, L1-02...L2-01...)</option>
+                                    </select>
+                                    <div class="form-text">Formatting style for parking slot numbers</div>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="restrict_ev_slots" name="restrict_ev_slots" 
+                                           {% if settings.get('restrict_ev_slots') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="restrict_ev_slots">Restrict EV Slots to Electric Vehicles</label>
+                                    <div class="form-text">When enabled, only electric vehicles can reserve EV charging slots</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Notification Settings Tab -->
+                            <div class="tab-pane fade" id="notification" role="tabpanel">
+                                <h4 class="card-title mb-4">Notification Settings</h4>
+                                
+                                <div class="mb-4">
+                                    <label for="email_notifications" class="form-label">Email Notifications</label>
+                                    <select class="form-select" id="email_notifications" name="email_notifications">
+                                        <option value="all" {% if settings.get('email_notifications') == 'all' %}selected{% endif %}>All notifications</option>
+                                        <option value="important" {% if settings.get('email_notifications') == 'important' %}selected{% endif %}>Important only</option>
+                                        <option value="none" {% if settings.get('email_notifications') == 'none' %}selected{% endif %}>No email notifications</option>
+                                    </select>
+                                    <div class="form-text">Configure which notifications are sent via email</div>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="notify_admin_new_reservation" name="notify_admin_new_reservation" 
+                                           {% if settings.get('notify_admin_new_reservation') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="notify_admin_new_reservation">Notify Admin of New Reservations</label>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="notify_admin_cancellation" name="notify_admin_cancellation" 
+                                           {% if settings.get('notify_admin_cancellation') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="notify_admin_cancellation">Notify Admin of Cancellations</label>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="send_reminder" name="send_reminder" 
+                                           {% if settings.get('send_reminder') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="send_reminder">Send Reservation Reminders</label>
+                                </div>
+                                
+                                <div class="mb-4" id="reminder-hours-container" style="{{ 'display:none' if settings.get('send_reminder') != 'true' else '' }}">
+                                    <label for="reminder_hours" class="form-label">Reminder Hours Before Reservation</label>
+                                    <input type="number" class="form-control" id="reminder_hours" name="reminder_hours" 
+                                           value="{{ settings.get('reminder_hours', '24') }}" min="1" max="72" required
+                                           {{ 'disabled' if settings.get('send_reminder') != 'true' else '' }}>
+                                    <div class="form-text">How many hours before the reservation to send a reminder</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="email_sender" class="form-label">Email Sender Name</label>
+                                    <input type="text" class="form-control" id="email_sender" name="email_sender" 
+                                           value="{{ settings.get('email_sender', 'ParkEase System') }}" required>
+                                    <div class="form-text">Name that appears as the sender of system emails</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Advanced Settings Tab -->
+                            <div class="tab-pane fade" id="advanced" role="tabpanel">
+                                <h4 class="card-title mb-4">Advanced Settings</h4>
+                                
+                                <div class="mb-4">
+                                    <label for="session_timeout" class="form-label">Session Timeout (minutes)</label>
+                                    <input type="number" class="form-control" id="session_timeout" name="session_timeout" 
+                                           value="{{ settings.get('session_timeout', '60') }}" min="15" max="240" required>
+                                    <div class="form-text">Minutes of inactivity before a user is automatically logged out</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="password_expiry" class="form-label">Password Expiry (days)</label>
+                                    <input type="number" class="form-control" id="password_expiry" name="password_expiry" 
+                                           value="{{ settings.get('password_expiry', '90') }}" min="0" max="365" required>
+                                    <div class="form-text">Days before passwords expire (0 = never expire)</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="failed_login_attempts" class="form-label">Account Lockout Threshold</label>
+                                    <input type="number" class="form-control" id="failed_login_attempts" name="failed_login_attempts" 
+                                           value="{{ settings.get('failed_login_attempts', '5') }}" min="3" max="10" required>
+                                    <div class="form-text">Number of failed login attempts before account is locked</div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label for="lockout_duration" class="form-label">Account Lockout Duration (minutes)</label>
+                                    <input type="number" class="form-control" id="lockout_duration" name="lockout_duration" 
+                                           value="{{ settings.get('lockout_duration', '30') }}" min="5" max="1440" required>
+                                    <div class="form-text">Duration of account lockout after exceeding failed login attempts</div>
+                                </div>
+                                
+                                <div class="form-check form-switch mb-4">
+                                    <input class="form-check-input" type="checkbox" id="enable_debug_mode" name="enable_debug_mode" 
+                                           {% if settings.get('enable_debug_mode') == 'true' %}checked{% endif %}>
+                                    <label class="form-check-label" for="enable_debug_mode">Enable Debug Mode</label>
+                                    <div class="form-text text-danger">Shows detailed error information. Only enable in development environment!</div>
+                                </div>
+                                
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> Changes to Advanced Settings may affect system security and performance. Proceed with caution.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr class="mt-4">
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save All Settings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Settings Modal -->
+<div class="modal fade" id="restoreModal" tabindex="-1" aria-labelledby="restoreModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="restoreModalLabel">Restore Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="restore-form" enctype="multipart/form-data" action="{{ url_for('admin_settings') }}" method="POST">
+                    <input type="hidden" name="action" value="restore">
+                    <!-- No CSRF token if Flask-WTF is not properly set up -->
+                    <div class="mb-3">
+                        <label for="settings-file" class="form-label">Upload Settings Backup File</label>
+                        <input class="form-control" type="file" id="settings-file" name="settings_file" accept=".json">
+                        <div class="form-text">Upload a valid settings backup file (.json format)</div>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Warning: Restoring settings will overwrite all current configuration. This action cannot be undone.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="restore-form" class="btn btn-warning">Restore Settings</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Settings Modal -->
+<div class="modal fade" id="resetModal" tabindex="-1" aria-labelledby="resetModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resetModalLabel">Reset to Default Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reset-form" action="{{ url_for('admin_settings') }}" method="POST">
+                    <input type="hidden" name="action" value="reset">
+                    <!-- No CSRF token if Flask-WTF is not properly set up -->
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong> This will reset ALL settings to their default values. This action cannot be undone.
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="confirm-reset" required>
+                        <label class="form-check-label" for="confirm-reset">
+                            I understand that this will reset all settings to default values
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="reset-form" class="btn btn-danger">Reset All Settings</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Operating hours functionality
+        const operatingHoursSelect = document.getElementById('operating_hours');
+        const customHoursContainer = document.getElementById('custom-hours-container');
+        
+        operatingHoursSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customHoursContainer.style.display = 'block';
+            } else {
+                customHoursContainer.style.display = 'none';
+            }
+        });
+        
+        // Day checkboxes for custom hours
+        const dayCheckboxes = document.querySelectorAll('.day-checkbox');
+        dayCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const day = this.getAttribute('data-day');
+                const openInput = document.getElementById(`${day}_open`);
+                const closeInput = document.getElementById(`${day}_close`);
+                
+                openInput.disabled = !this.checked;
+                closeInput.disabled = !this.checked;
+            });
+        });
+        
+        // Reminder hours functionality
+        const sendReminderCheckbox = document.getElementById('send_reminder');
+        const reminderHoursContainer = document.getElementById('reminder-hours-container');
+        const reminderHoursInput = document.getElementById('reminder_hours');
+        
+        sendReminderCheckbox.addEventListener('change', function() {
+            reminderHoursContainer.style.display = this.checked ? 'block' : 'none';
+            reminderHoursInput.disabled = !this.checked;
+        });
+        
+        // Backup settings functionality
+        document.getElementById('backup-settings').addEventListener('click', function() {
+            window.location.href = '{{ url_for("admin_settings") }}?action=backup';
+        });
+        
+        // Add reset settings button to advanced tab
+        const advancedTab = document.getElementById('advanced');
+        if (advancedTab) {
+            const resetButton = document.createElement('button');
+            resetButton.type = 'button';
+            resetButton.className = 'btn btn-outline-danger mt-3';
+            resetButton.innerHTML = '<i class="fas fa-undo-alt"></i> Reset to Default Settings';
+            resetButton.setAttribute('data-bs-toggle', 'modal');
+            resetButton.setAttribute('data-bs-target', '#resetModal');
+            
+            advancedTab.appendChild(resetButton);
+        }
+        
+        // Form validation
+        const settingsForm = document.getElementById('settings-form');
+        if (settingsForm) {
+            settingsForm.addEventListener('submit', function(event) {
+                let hasError = false;
+                
+                // Validate min/max duration
+                const minDuration = parseFloat(document.getElementById('min_duration').value);
+                const maxDuration = parseFloat(document.getElementById('max_duration').value);
+                
+                if (minDuration >= maxDuration) {
+                    alert('Minimum reservation duration must be less than maximum duration.');
+                    event.preventDefault();
+                    hasError = true;
+                }
+                
+                // Validate custom hours if enabled
+                if (document.getElementById('operating_hours').value === 'custom') {
+                    const enabledDays = document.querySelectorAll('.day-checkbox:checked');
+                    if (enabledDays.length === 0) {
+                        alert('When using custom operating hours, at least one day must be enabled.');
+                        event.preventDefault();
+                        hasError = true;
+                    }
+                }
+                
+                if (!hasError && confirm('Are you sure you want to save all settings? Some changes may affect existing reservations.')) {
+                    return true; // Submit the form
+                } else if (!hasError) {
+                    event.preventDefault(); // User cancelled
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Add Parking Slot - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-5 pt-3">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h2>Add Parking Slot</h2>
+            <p class="text-muted">Create a new parking slot</p>
+            <hr>
+
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Slot Details</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('add_slot') }}">
+                        <div class="mb-3">
+                            <label for="slot_number" class="form-label">Slot Number</label>
+                            <input type="text" class="form-control" id="slot_number" name="slot_number" required>
+                            <div class="form-text">Enter a unique identifier for this parking slot (e.g., A1, B2, etc.)</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="slot_type" class="form-label">Slot Type</label>
+                            <select class="form-select" id="slot_type" name="slot_type" required>
+                                <option value="Regular">Regular</option>
+                                <option value="Electric">Electric</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Initial Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="Available">Available</option>
+                                <option value="Occupied">Occupied</option>
+                                <option value="Maintenance">Maintenance</option>
+                            </select>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin_slots') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Add Slot</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

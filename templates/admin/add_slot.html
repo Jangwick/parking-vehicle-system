@@ -16,6 +16,9 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" action="{{ url_for('add_slot') }}">
+                        <!-- Add CSRF token here -->
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
                         <div class="mb-3">
                             <label for="slot_number" class="form-label">Slot Number</label>
                             <input type="text" class="form-control" id="slot_number" name="slot_number" required>

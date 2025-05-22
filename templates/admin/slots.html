@@ -502,6 +502,56 @@
         </div>
     </div>
 </div>
+
+<!-- Add New Parking Slot Modal -->
+<div class="modal fade" id="addSlotModal" tabindex="-1" aria-labelledby="addSlotModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addSlotModalLabel">Add New Parking Slot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="/admin/add-slot" id="addSlotForm">
+                    <!-- Add CSRF token here -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    
+                    <!-- The rest of the form fields would be here -->
+                    <div class="mb-3">
+                        <label for="slot_number" class="form-label">Slot Number</label>
+                        <input type="text" class="form-control" id="slot_number" name="slot_number" required>
+                        <div class="form-text">Enter a unique identifier for this parking slot (e.g., A1, B2, etc.)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="slot_type" class="form-label">Slot Type</label>
+                        <select class="form-select" id="slot_type" name="slot_type" required>
+                            <option value="Regular">Regular</option>
+                            <option value="Electric">Electric</option>
+                            <option value="Handicap">Handicap</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Initial Status</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="Available">Available</option>
+                            <option value="Occupied">Occupied</option>
+                            <option value="Maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Any additional form fields would be here -->
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="addSlotForm" class="btn btn-primary">Add Slot</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_css %}
@@ -511,6 +561,7 @@
         background-color: #f8f9fa;
         border-radius: 5px;
     }
+    
     .parking-slot {
         height: 80px;
         border-radius: 5px;
@@ -523,29 +574,49 @@
         cursor: pointer;
         transition: all 0.2s ease;
     }
+    
     .parking-slot:hover {
         transform: scale(1.05);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     }
+    
     .parking-slot.available {
         background-color: #28a745;
     }
+    
     .parking-slot.occupied {
         background-color: #ffc107;
     }
+    
     .parking-slot.maintenance {
         background-color: #dc3545;
     }
+    
     .parking-slot.electric::after {
         content: "⚡";
         position: absolute;
         top: 5px;
         right: 10px;
         font-size: 14px;
+        animation: pulse 2s infinite;
     }
+    
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.1);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+    
     .slot-number {
         font-size: 18px;
     }
+    
     .slot-type {
         font-size: 12px;
         opacity: 0.8;
@@ -600,7 +671,7 @@
                     const selectedIds = Array.from(slotCheckboxes)
                         .filter(cb => cb.checked)
                         .map(cb => cb.value);
-                        
+                    
                     if (selectedIds.length > 0) {
                         processBulkAction('available', selectedIds);
                     }
@@ -615,7 +686,7 @@
                     const selectedIds = Array.from(slotCheckboxes)
                         .filter(cb => cb.checked)
                         .map(cb => cb.value);
-                        
+                    
                     if (selectedIds.length > 0) {
                         processBulkAction('maintenance', selectedIds);
                     }
@@ -630,7 +701,7 @@
                     const selectedIds = Array.from(slotCheckboxes)
                         .filter(cb => cb.checked)
                         .map(cb => cb.value);
-                        
+                    
                     if (selectedIds.length > 0) {
                         processBulkAction('delete', selectedIds);
                     }
@@ -644,14 +715,15 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
                 },
                 body: JSON.stringify({
                     action: action,
                     slot_ids: ids
-                }),
+                })
             })
             .then(response => response.json())
-            .then(data => {
+            .then data => {
                 if (data.success) {
                     window.location.reload();
                 } else {
@@ -687,16 +759,12 @@
             document.getElementById('slotDetailsContent').style.display = 'none';
             document.getElementById('slotDetailsLoader').style.display = 'block';
             document.getElementById('slotEditButton').href = `/admin/edit-slot/${slotId}`;
-                
+            
             // Fetch slot details
             fetch(`/api/admin/slot-details/${slotId}`)
                 .then(response => response.json())
                 .then(data => {
                     updateSlotDetailsModal(data);
-                    
-                    // Show content
-                    document.getElementById('slotDetailsLoader').style.display = 'none';
-                    document.getElementById('slotDetailsContent').style.display = 'block';
                 })
                 .catch(error => {
                     console.error('Error fetching slot details:', error);
@@ -711,13 +779,11 @@
         function updateSlotDetailsModal(data) {
             // Update slot details
             document.getElementById('detail-number').textContent = data.slot_number;
-            
             document.getElementById('detail-type').innerHTML = `
                 <span class="badge bg-${data.slot_type === 'Regular' ? 'primary' : 'success'}">
                     ${data.slot_type}
                 </span>
             `;
-            
             document.getElementById('detail-status').innerHTML = `
                 <span class="badge bg-${data.status === 'Available' ? 'success' : data.status === 'Occupied' ? 'warning' : 'danger'}">
                     ${data.status}
@@ -725,10 +791,10 @@
             `;
             
             document.getElementById('detail-location').textContent = data.location || 'Not specified';
-            
+            // Update slot details
             document.getElementById('detail-usage-count').textContent = data.usage_count;
             document.getElementById('detail-hours-used').textContent = data.hours_used + 'h';
-            
+            document.getElementById('detail-type').innerHTML = `
             // Update current reservation
             if (data.current_reservation) {
                 document.getElementById('no-current-reservation').style.display = 'none';
@@ -755,7 +821,7 @@
                 this.querySelector('.modal-title').textContent = `Usage History for Slot ${slotNumber}`;
                 document.getElementById('historyLoader').style.display = 'block';
                 document.getElementById('slotHistoryBody').innerHTML = '';
-                
+                document.getElementById('no-current-reservation').style.display = 'block';
                 // Fetch slot history
                 fetch(`/api/admin/slot-history/${slotId}`)
                     .then(response => response.json())
@@ -772,7 +838,7 @@
                             const statusClass = reservation.status === 'Pending' ? 'warning' : 
                                               reservation.status === 'Active' ? 'success' : 
                                               reservation.status === 'Completed' ? 'dark' : 'danger';
-                            
+                            // Add history row
                             tbody.innerHTML += `
                                 <tr>
                                     <td>${reservation.user_name}</td>
@@ -783,7 +849,7 @@
                                 </tr>
                             `;
                         });
-                    })
+                    })  
                     .catch(error => {
                         console.error('Error fetching slot history:', error);
                         document.getElementById('historyLoader').style.display = 'none';
@@ -801,24 +867,11 @@
         }
         
         // Export functionality
-        document.getElementById('exportAll').addEventListener('change', function() {
-            if (this.checked) {
-                document.getElementById('exportFiltered').checked = false;
-            }
-        });
-        
-        document.getElementById('exportFiltered').addEventListener('change', function() {
-            if (this.checked) {
-                document.getElementById('exportAll').checked = false;
-            }
-        });
-        
         document.getElementById('exportBtn').addEventListener('click', function() {
             // Get form data
             const format = document.querySelector('input[name="exportFormat"]:checked').value;
             const exportAll = document.getElementById('exportAll').checked;
-            
-            // Selected fields
+            // Selected fieldss
             const fields = [];
             if (document.getElementById('fieldNumber').checked) fields.push('slot_number');
             if (document.getElementById('fieldType').checked) fields.push('slot_type');
@@ -826,7 +879,7 @@
             if (document.getElementById('fieldLocation').checked) fields.push('location');
             if (document.getElementById('fieldUsage').checked) fields.push('usage_count');
             if (document.getElementById('fieldHours').checked) fields.push('hours_used');
-            
+            // Selected fields
             if (fields.length === 0) {
                 alert('Please select at least one field to export');
                 return;
@@ -868,14 +921,6 @@
                     }
                     
                     const contentType = response.headers.get('content-type');
-                    
-                    // If it's JSON, it's likely an error response
-                    if (contentType && contentType.includes('application/json')) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Export failed');
-                        });
-                    }
-                    
                     // For HTML content (PDF fallback), open in a new tab
                     if (contentType && contentType.includes('text/html')) {
                         // For PDF exports that fall back to HTML, open in a new tab with the same URL
@@ -888,7 +933,7 @@
                         btnRef.innerHTML = exportBtnOriginal;
                         btnRef.disabled = false;
                         return null; // Skip blob handling
-                    }
+                    } 
                     
                     return response.blob();
                 })
@@ -898,7 +943,6 @@
                     // Create download link and trigger download
                     const extension = format === 'excel' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'csv';
                     const filename = `parking_slots_export_${new Date().toISOString().split('T')[0]}.${extension}`;
-                    
                     const downloadLink = document.createElement('a');
                     downloadLink.href = URL.createObjectURL(blob);
                     downloadLink.download = filename;

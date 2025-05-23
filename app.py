@@ -10,6 +10,7 @@ import json
 import io
 import csv
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from functools import wraps
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -69,6 +70,21 @@ class SystemSetting(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# Decorator to check admin access
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            flash('Please log in to access this page.', 'error')
+            return redirect(url_for('login', next=request.url))
+        
+        if not current_user.is_admin:
+            flash('You do not have permission to access this page.', 'error')
+            return redirect(url_for('dashboard'))
+            
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Routes
 @app.route('/')
@@ -701,90 +717,141 @@ def delete_user(id):
     flash(f'User {user.name} has been deleted')
     return redirect(url_for('admin_users'))
 
-@app.route('/admin/reservations')
+@app.route('/admin/reservations', methods=['GET'])
 @login_required
+@admin_required
 def admin_reservations():
-    if not current_user.is_admin:
-        return redirect(url_for('user_dashboard'))
-    
-    # Get page number for pagination
+    # Get query parameters for filtering and pagination
     page = request.args.get('page', 1, type=int)
-    per_page = 10  # Number of reservations per page
+    per_page = request.args.get('per_page', 10, type=int)
+    search_query = request.args.get('search', '')
+    status_filter = request.args.get('status', '')
+    slot_type_filter = request.args.get('slot_type', '')
+    start_date = request.args.get('start_date', '')
+    end_date = request.args.get('end_date', '')
+    sort_by = request.args.get('sort', 'newest')
     
+    # Handle reservation actions
+    action = request.args.get('action')
+    reservation_id = request.args.get('reservation_id')
+    
+    if action and reservation_id:
+        reservation = Reservation.query.get(reservation_id)
+        if reservation:
+            if action == 'approve':
+                reservation.status = 'Active'
+                db.session.commit()
+                flash('Reservation approved successfully!', 'success')
+            elif action == 'deny':
+                reservation.status = 'Cancelled'
+                db.session.commit()
+                flash('Reservation denied successfully!', 'error')
+            elif action == 'complete':
+                reservation.status = 'Completed'
+                db.session.commit()
+                flash('Reservation marked as completed!', 'success')
+            elif action == 'cancel':
+                reservation.status = 'Cancelled'
+                db.session.commit()
+                flash('Reservation cancelled successfully!', 'success')
+            elif action == 'reactivate':
+                reservation.status = 'Active'
+                db.session.commit()
+                flash('Reservation reactivated successfully!', 'success')
+        return redirect(url_for('admin_reservations'))
+    
+    # Handle bulk actions
+    bulk_action = request.args.get('bulk_action')
+    selected_ids = request.args.getlist('selected_ids')
+    
+    if bulk_action and selected_ids:
+        processed = 0
+        for id in selected_ids:
+            reservation = Reservation.query.get(id)
+            if not reservation:
+                continue
+                
+            if bulk_action == 'approve' and reservation.status == 'Pending':
+                reservation.status = 'Active'
+                processed += 1
+            elif bulk_action == 'deny' and reservation.status == 'Pending':
+                reservation.status = 'Cancelled'
+                processed += 1
+            elif bulk_action == 'cancel' and reservation.status == 'Active':
+                reservation.status = 'Cancelled'
+                processed += 1
+            elif bulk_action == 'complete' and reservation.status == 'Active':
+                reservation.status = 'Completed'
+                processed += 1
+                
+        if processed > 0:
+            db.session.commit()
+            flash(f'{processed} reservations processed successfully!', 'success')
+        return redirect(url_for('admin_reservations'))
+
     # Build query with filters
     query = Reservation.query
     
-    # Apply search filter if provided
-    search = request.args.get('search', '')
-    if search:
-        query = query.join(User, Reservation.user_id == User.id).join(ParkingSlot, Reservation.slot_id == ParkingSlot.id).filter(
+    if search_query:
+        query = query.join(User).join(ParkingSlot).filter(
             or_(
-                User.name.ilike(f'%{search}%'),
-                ParkingSlot.slot_number.ilike(f'%{search}%')
+                User.name.ilike(f'%{search_query}%'),
+                User.email.ilike(f'%{search_query}%'),
+                ParkingSlot.slot_number.ilike(f'%{search_query}%')
             )
         )
     
-    # Apply status filter if provided
-    status = request.args.get('status', '')
-    if status:
-        query = query.filter(Reservation.status == status)
+    if status_filter:
+        query = query.filter(Reservation.status == status_filter)
     
-    # Apply slot type filter if provided
-    slot_type = request.args.get('slot_type', '')
-    if slot_type:
-        query = query.join(ParkingSlot, Reservation.slot_id == ParkingSlot.id).filter(
-            ParkingSlot.slot_type == slot_type
-        )
+    if slot_type_filter:
+        query = query.join(ParkingSlot).filter(ParkingSlot.slot_type == slot_type_filter)
     
-    # Apply date range filters if provided
-    start_date = request.args.get('start_date', '')
     if start_date:
-        try:
-            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-            query = query.filter(Reservation.start_time >= start_date_obj)
-        except ValueError:
-            pass  # Invalid date format
+        query = query.filter(Reservation.start_time >= datetime.strptime(start_date, '%Y-%m-%d'))
     
-    end_date = request.args.get('end_date', '')
     if end_date:
-        try:
-            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
-            end_date_obj = end_date_obj.replace(hour=23, minute=59, second=59)
-            query = query.filter(Reservation.end_time <= end_date_obj)
-        except ValueError:
-            pass  # Invalid date format
+        query = query.filter(Reservation.end_time <= (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)))
     
     # Apply sorting
-    sort = request.args.get('sort', 'newest')
-    if sort == 'newest':
+    if sort_by == 'newest':
         query = query.order_by(Reservation.created_at.desc())
-    elif sort == 'oldest':
-        query = query.order_by(Reservation.created_at)
-    elif sort == 'start_time':
-        query = query.order_by(Reservation.start_time)
-    elif sort == 'end_time':
-        query = query.order_by(Reservation.end_time)
+    elif sort_by == 'oldest':
+        query = query.order_by(Reservation.created_at.asc())
+    elif sort_by == 'start_time':
+        query = query.order_by(Reservation.start_time.asc())
+    elif sort_by == 'end_time':
+        query = query.order_by(Reservation.end_time.asc())
     
-    # Get reservation counts for stats
+    # Get statistics for summary cards
     total_reservations = Reservation.query.count()
     pending_reservations = Reservation.query.filter_by(status='Pending').count()
     active_reservations = Reservation.query.filter_by(status='Active').count()
     cancelled_reservations = Reservation.query.filter_by(status='Cancelled').count()
     completed_reservations = Reservation.query.filter_by(status='Completed').count()
     
-    # Paginate the results
-    paginated_reservations = query.paginate(page=page, per_page=per_page, error_out=False)
+    # Paginate results
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    reservations = pagination.items
+    total_pages = pagination.pages or 1
+    
+    # Get all users and slots for add/edit modals
+    all_users = User.query.filter_by(is_admin=False).all()
+    all_slots = ParkingSlot.query.all()
     
     return render_template(
         'admin/reservations.html',
-        reservations=paginated_reservations.items,
+        reservations=reservations,
         page=page,
-        total_pages=paginated_reservations.pages or 1,
+        per_page=per_page,
+        total_pages=total_pages,
         total_reservations=total_reservations,
         pending_reservations=pending_reservations,
         active_reservations=active_reservations,
         cancelled_reservations=cancelled_reservations,
-        completed_reservations=completed_reservations
+        completed_reservations=completed_reservations,
+        all_users=all_users,
+        all_slots=all_slots
     )
 
 @app.route('/admin/slots')
@@ -928,7 +995,7 @@ def delete_slot(id):
     flash('Parking slot deleted successfully')
     return redirect(url_for('admin_slots'))
 
-# Replace the JavaScript-style comments (//) with Python comments (#)
+# Replace the JavaScript-style comments (//) with Python comments
 # Find the admin_settings route and modify it to handle all the settings-related actions
 @app.route('/admin/settings', methods=['GET', 'POST'])
 @login_required
@@ -2039,7 +2106,6 @@ def admin_profile_update():
             return redirect(url_for('login'))
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f"Error changing password: {str(e)}")
             session['error_message'] = "An error occurred while changing your password."
     
     elif action == 'update_preferences':
@@ -2321,7 +2387,7 @@ def api_reservation_details(id):
     duration_seconds = (reservation.end_time - reservation.start_time).total_seconds()
     hours = int(duration_seconds / 3600)
     minutes = int((duration_seconds % 3600) / 60)
-    duration = f"{hours}h {minutes}m"
+    duration_str = f"{hours}h {minutes}m"
     
     return jsonify({
         'id': reservation.id,
@@ -2330,8 +2396,8 @@ def api_reservation_details(id):
         'start_time': reservation.start_time.strftime('%Y-%m-%d %H:%M'),
         'end_time': reservation.end_time.strftime('%Y-%m-%d %H:%M'),
         'status': reservation.status,
-        'duration': duration,
-        'created_at': reservation.created_at.strftime('%Y-%m-%d %H:%M')
+        'duration': duration_str,
+        'created_at': reservation.created_at.strftime('%Y-%m-%d %H:%M') if hasattr(reservation, 'created_at') else None
     })
 
 @app.route('/api/available-slots')
@@ -2392,230 +2458,6 @@ def api_user_reservation_stats():
         'completed': completed,
         'cancelled': cancelled
     })
-
-@app.route('/api/user/activity')
-@login_required
-def api_user_activity():
-    if current_user.is_admin:
-        return jsonify({'error': 'Admin users should use admin APIs'}), 403
-        
-    # Get user's recent reservations for activity feed
-    recent_reservations = Reservation.query.filter_by(user_id=current_user.id).order_by(
-        Reservation.created_at.desc()
-    ).limit(10).all()
-    
-    activities = []
-    
-    for reservation in recent_reservations:
-        activity_type = ''
-        action = ''
-        
-        if reservation.status == 'Pending':
-            activity_type = 'reservation'
-            action = 'Created reservation'
-        elif reservation.status == 'Active':
-            activity_type = 'reservation'
-            action = 'Started reservation'
-        elif reservation.status == 'Completed':
-            activity_type = 'completed'
-            action = 'Completed reservation'
-        elif reservation.status == 'Cancelled':
-            activity_type = 'cancellation'
-            action = 'Cancelled reservation'
-        
-        activities.append({
-            'type': activity_type,
-            'action': action,
-            'description': f"Slot {reservation.parking_slot.slot_number} from {reservation.start_time.strftime('%Y-%m-%d %H:%M')} to {reservation.end_time.strftime('%Y-%m-%d %H:%M')}",
-            'time': reservation.created_at.strftime('%Y-%m-%d %H:%M')
-        })
-    
-    return jsonify(activities)
-
-@app.route('/api/user/notifications')
-@login_required
-def api_user_notifications():
-    if current_user.is_admin:
-        return jsonify({'error': 'Admin users should use admin APIs'}), 403
-    
-    # Generate some sample notifications based on user's reservations
-    notifications = []
-    
-    # Check for active reservations ending soon
-    active_reservations = Reservation.query.filter_by(
-        user_id=current_user.id,
-        status='Active'
-    ).all()
-    
-    now = datetime.now()
-    
-    for reservation in active_reservations:
-        # If reservation ends within 30 minutes
-        time_left = reservation.end_time - now
-        if time_left.total_seconds() <= 1800:  # 30 minutes in seconds
-            notifications.append({
-                'type': 'warning',
-                'title': 'Reservation Ending Soon',
-                'message': f'Your reservation for Slot {reservation.parking_slot.slot_number} ends in {int(time_left.total_seconds() / 60)} minutes.',
-                'time': 'Just now'
-            })
-    
-    # Check for upcoming reservations
-    upcoming_reservations = Reservation.query.filter_by(
-        user_id=current_user.id,
-        status='Pending'
-    ).all()
-    
-    for reservation in upcoming_reservations:
-        # If reservation starts within 24 hours
-        time_to_start = reservation.start_time - now
-        if 0 < time_to_start.total_seconds() <= 86400:  # 24 hours in seconds
-            notifications.append({
-                'type': 'info',
-                'title': 'Upcoming Reservation',
-                'message': f'Your reservation for Slot {reservation.parking_slot.slot_number} starts on {reservation.start_time.strftime("%Y-%m-%d at %H:%M")}.',
-                'time': '1 hour ago'
-            })
-    
-    # Add a welcome notification if it's a new user (less than 3 reservations)
-    total_reservations = Reservation.query.filter_by(user_id=current_user.id).count()
-    if total_reservations < 3:
-        notifications.append({
-            'type': 'success',
-            'title': 'Welcome to ParkEase',
-            'message': 'Thank you for using our parking reservation system. Need help? Check out our FAQ section.',
-            'time': '2 hours ago'
-        })
-    
-    return jsonify(notifications)
-
-# Add a safe migration function that works with SQLite
-def add_created_at_column():
-    try:
-        with app.app_context():
-            # Check if the column exists
-            inspector = db.inspect(db.engine)
-            columns = [column['name'] for column in inspector.get_columns('user')]
-            
-            if 'created_at' not in columns:
-                # SQLite-compatible approach (add column without default value)
-                db.session.execute(db.text('ALTER TABLE user ADD COLUMN created_at TIMESTAMP'))
-                # Then update existing rows
-                db.session.execute(db.text('UPDATE user SET created_at = CURRENT_TIMESTAMP'))
-                db.session.commit()
-                print("Added created_at column to user table")
-    except Exception as e:
-        print(f"Error adding created_at column: {str(e)}")
-        db.session.rollback()
-
-# Fix the main block with the correct name check
-if __name__ == '__main__':  # Fix from __name__name__ to __name__
-    # Create directories if they don't exist
-    os.makedirs('data', exist_ok=True)
-    
-    with app.app_context():
-        # Run migration to add created_at column before creating all tables
-        add_created_at_column()
-        
-        # Create tables
-        db.create_all()
-        
-        # Check if admin user exists
-        admin = User.query.filter_by(email='admin@example.com').first()
-        if not admin:
-            # Create admin user
-            admin = User(
-                name="Admin",
-                email="admin@example.com",
-                password=generate_password_hash('adminpass', method='pbkdf2:sha256'),
-                vehicle_type="Electric",
-                is_admin=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("Admin user created with email: admin@example.com and password: adminpass")
-    
-    # Run the Flask development server
-    app.run(debug=True)
-
-# Add the API endpoints needed for the user dashboard
-
-@app.route('/api/slots/available')
-def api_slots_available():
-    # Get all available parking slots
-    available_slots = ParkingSlot.query.filter_by(is_available=True).all()
-    
-    slots_data = [
-        {
-            'id': slot.id,
-            'slot_number': slot.slot_number,
-            'slot_type': slot.slot_type
-        }
-        for slot in available_slots
-    ]
-    
-    return jsonify(slots_data)
-
-@app.route('/api/user/notifications')
-@login_required
-def api_user_notifications():
-    # Mock data for notifications - in a real app, fetch from database
-    notifications = [
-        {
-            'id': 1,
-            'type': 'success',
-            'title': 'Reservation Confirmed',
-            'message': 'Your reservation for Slot A1 has been confirmed',
-            'time': '10 minutes ago'
-        },
-        {
-            'id': 2,
-            'type': 'info',
-            'title': 'Upcoming Reservation',
-            'message': 'You have a reservation tomorrow at 2:00 PM',
-            'time': '2 hours ago'
-        }
-    ]
-    
-    # In a real implementation, you would filter these by user
-    return jsonify(notifications)
-
-@app.route('/api/user/activity')
-@login_required
-def api_user_activity():
-    # Mock data for user activity - in a real app, fetch from database
-    activities = [
-        {
-            'id': 1,
-            'type': 'reservation',
-            'action': 'New Reservation',
-            'description': 'Reserved slot A1 for tomorrow',
-            'time': '3 hours ago'
-        },
-        {
-            'id': 2,
-            'type': 'completed',
-            'action': 'Reservation Completed',
-            'description': 'Your reservation for Slot B3 has ended',
-            'time': '2 days ago'
-        }
-    ]
-    
-    # In a real implementation, you would filter these by user
-    return jsonify(activities)
-
-@app.route('/api/user/reservation-stats')
-@login_required
-def api_user_reservation_stats():
-    # Get reservation statistics for the current user
-    stats = {
-        'pending': Reservation.query.filter_by(user_id=current_user.id, status='Pending').count(),
-        'active': Reservation.query.filter_by(user_id=current_user.id, status='Active').count(),
-        'completed': Reservation.query.filter_by(user_id=current_user.id, status='Completed').count(),
-        'cancelled': Reservation.query.filter_by(user_id=current_user.id, status='Cancelled').count()
-    }
-    
-    return jsonify(stats)
 
 # Add this new API endpoint for fetching reservation details
 @app.route('/api/reservation/<int:id>', methods=['GET'])

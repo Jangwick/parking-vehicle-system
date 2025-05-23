@@ -4,6 +4,23 @@
 
 {% block content %}
 <div class="container mt-5 pt-3">
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="row mb-3">
+                <div class="col-12">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
+                            <i class="fas fa-{{ 'exclamation-circle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <div class="row mb-4">
         <div class="col-md-12 d-flex justify-content-between align-items-center">
             <div>
@@ -19,6 +36,9 @@
                 </button>
                 <button type="button" class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#exportModal">
                     <i class="fas fa-file-export"></i> Export
+                </button>
+                <button type="button" class="btn btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#addReservationModal">
+                    <i class="fas fa-plus"></i> Add Reservation
                 </button>
             </div>
         </div>
@@ -65,6 +85,14 @@
                                     <option value="end_time" {% if request.args.get('sort') == 'end_time' %}selected{% endif %}>Sort by End Time</option>
                                 </select>
                             </div>
+                            <div class="col-md-3">
+                                <select name="per_page" class="form-select">
+                                    <option value="10" {% if request.args.get('per_page', '10') == '10' %}selected{% endif %}>10 per page</option>
+                                    <option value="25" {% if request.args.get('per_page') == '25' %}selected{% endif %}>25 per page</option>
+                                    <option value="50" {% if request.args.get('per_page') == '50' %}selected{% endif %}>50 per page</option>
+                                    <option value="100" {% if request.args.get('per_page') == '100' %}selected{% endif %}>100 per page</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="row g-3">
                             <div class="col-md-3">
@@ -101,7 +129,7 @@
                         <i class="fas fa-calendar fa-3x"></i>
                     </div>
                     <div class="ms-3">
-                        <h5 class="mb-0">{{ total_reservations }}</h5>
+                        <h5 class="mb-0">{{ total_reservations or 0 }}</h5>
                         <div>Total Reservations</div>
                     </div>
                 </div>
@@ -114,7 +142,7 @@
                         <i class="fas fa-hourglass-half fa-3x"></i>
                     </div>
                     <div class="ms-3">
-                        <h5 class="mb-0">{{ pending_reservations }}</h5>
+                        <h5 class="mb-0">{{ pending_reservations or 0 }}</h5>
                         <div>Pending</div>
                     </div>
                 </div>
@@ -127,7 +155,7 @@
                         <i class="fas fa-check fa-3x"></i>
                     </div>
                     <div class="ms-3">
-                        <h5 class="mb-0">{{ active_reservations }}</h5>
+                        <h5 class="mb-0">{{ active_reservations or 0 }}</h5>
                         <div>Active</div>
                     </div>
                 </div>
@@ -140,7 +168,7 @@
                         <i class="fas fa-ban fa-3x"></i>
                     </div>
                     <div class="ms-3">
-                        <h5 class="mb-0">{{ cancelled_reservations }}</h5>
+                        <h5 class="mb-0">{{ cancelled_reservations or 0 }}</h5>
                         <div>Cancelled</div>
                     </div>
                 </div>
@@ -155,7 +183,10 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">All Reservations</h4>
                     <div>
-                        <span class="badge bg-primary">Total: {{ reservations|length }}</span>
+                        <span class="badge bg-primary">Total: {{ reservations|length if reservations else 0 }}</span>
+                        {% if request.args.get('search') or request.args.get('status') or request.args.get('slot_type') %}
+                            <span class="badge bg-info ms-2">Filtered Results</span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="card-body">
@@ -172,87 +203,169 @@
                                 <div class="col">
                                     <div class="btn-group" role="group">
                                         <button type="button" class="btn btn-sm btn-outline-success" id="bulkApprove" disabled>
-                                            Approve Selected
+                                            <i class="fas fa-check"></i> Approve Selected
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" id="bulkCancel" disabled>
-                                            Cancel Selected
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="bulkDeny" disabled>
+                                            <i class="fas fa-times"></i> Deny Selected
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" id="bulkCancel" disabled>
+                                            <i class="fas fa-ban"></i> Cancel Selected
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="bulkComplete" disabled>
+                                            <i class="fas fa-flag-checkered"></i> Complete Selected
                                         </button>
                                     </div>
+                                </div>
+                                <div class="col-auto">
+                                    <small class="text-muted" id="selectionCount">0 selected</small>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="table-responsive">
                             <table class="table table-hover">
-                                <thead>
+                                <thead class="table-light">
                                     <tr>
                                         <th width="40">#</th>
+                                        <th>ID</th>
                                         <th>User</th>
                                         <th>Slot</th>
                                         <th>Start Time</th>
                                         <th>End Time</th>
                                         <th>Duration</th>
+                                        <th>Created</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for reservation in reservations %}
-                                        <tr>
+                                        <tr data-reservation-id="{{ reservation.id }}" class="reservation-row">
                                             <td>
                                                 <div class="form-check">
                                                     <input class="form-check-input reservation-select" 
                                                            type="checkbox" 
                                                            value="{{ reservation.id }}" 
                                                            id="res{{ reservation.id }}"
+                                                           data-status="{{ reservation.status }}"
                                                            {% if reservation.status not in ['Pending', 'Active'] %}disabled{% endif %}>
                                                 </div>
                                             </td>
+                                            <td><small class="text-muted">#{{ reservation.id }}</small></td>
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <div class="avatar me-2 bg-{{ 'primary' if reservation.user.vehicle_type == 'Gasoline' else 'danger' if reservation.user.vehicle_type == 'Diesel' else 'success' }} rounded-circle d-flex justify-content-center align-items-center" style="width:32px; height:32px; color:white">
                                                         {{ reservation.user.name[0]|upper }}
                                                     </div>
-                                                    <div>{{ reservation.user.name }}</div>
+                                                    <div>
+                                                        <div>{{ reservation.user.name }}</div>
+                                                        <small class="text-muted">{{ reservation.user.email }}</small>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td>
                                                 <span class="badge bg-{{ 'primary' if reservation.parking_slot.slot_type == 'Regular' else 'success' }}">
-                                                    {{ reservation.parking_slot.slot_number }} ({{ reservation.parking_slot.slot_type }})
+                                                    {{ reservation.parking_slot.slot_number }}
                                                 </span>
+                                                <br>
+                                                <small class="text-muted">{{ reservation.parking_slot.slot_type }}</small>
                                             </td>
-                                            <td>{{ reservation.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                                            <td>{{ reservation.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                            <td>
+                                                <div>{{ reservation.start_time.strftime('%Y-%m-%d') }}</div>
+                                                <small class="text-muted">{{ reservation.start_time.strftime('%H:%M') }}</small>
+                                            </td>
+                                            <td>
+                                                <div>{{ reservation.end_time.strftime('%Y-%m-%d') }}</div>
+                                                <small class="text-muted">{{ reservation.end_time.strftime('%H:%M') }}</small>
+                                            </td>
                                             <td>
                                                 {% set duration_seconds = (reservation.end_time - reservation.start_time).total_seconds() %}
                                                 {% set hours = (duration_seconds / 3600)|int %}
                                                 {% set minutes = ((duration_seconds % 3600) / 60)|int %}
-                                                {{ hours }}h {{ minutes }}m
+                                                {% set days = (hours / 24)|int %}
+                                                {% if days > 0 %}
+                                                    {{ days }}d {{ hours % 24 }}h
+                                                {% else %}
+                                                    {{ hours }}h {{ minutes }}m
+                                                {% endif %}
                                             </td>
                                             <td>
-                                                <span class="badge bg-{{ 'warning' if reservation.status == 'Pending' else 'success' if reservation.status == 'Active' else 'dark' if reservation.status == 'Completed' else 'danger' }}">
+                                                <div>{{ reservation.created_at.strftime('%Y-%m-%d') if reservation.created_at else 'N/A' }}</div>
+                                                <small class="text-muted">{{ reservation.created_at.strftime('%H:%M') if reservation.created_at else '' }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ 'warning' if reservation.status == 'Pending' else 'success' if reservation.status == 'Active' else 'dark' if reservation.status == 'Completed' else 'danger' }} status-badge">
                                                     {{ reservation.status }}
                                                 </span>
+                                                {% if reservation.status == 'Pending' %}
+                                                    <br><small class="text-muted">Awaiting approval</small>
+                                                {% elif reservation.status == 'Active' %}
+                                                    <br><small class="text-success">Currently active</small>
+                                                {% elif reservation.status == 'Completed' %}
+                                                    <br><small class="text-muted">Finished</small>
+                                                {% elif reservation.status == 'Cancelled' %}
+                                                    <br><small class="text-danger">Cancelled</small>
+                                                {% endif %}
                                             </td>
                                             <td>
                                                 <div class="btn-group" role="group">
                                                     <button type="button" class="btn btn-sm btn-info" 
                                                             data-bs-toggle="modal" 
                                                             data-bs-target="#reservationDetailsModal"
-                                                            data-reservation-id="{{ reservation.id }}">
+                                                            data-reservation-id="{{ reservation.id }}"
+                                                            title="View Details">
                                                         <i class="fas fa-info-circle"></i>
                                                     </button>
-                                                    {% if reservation.status in ['Pending', 'Active'] %}
-                                                        <a href="{{ url_for('edit_reservation', id=reservation.id) }}" class="btn btn-sm btn-primary">
-                                                            <i class="fas fa-edit"></i>
-                                                        </a>
-                                                        <a href="{{ url_for('cancel_reservation', id=reservation.id) }}" 
-                                                           class="btn btn-sm btn-outline-danger" 
-                                                           onclick="return confirm('Are you sure you want to cancel this reservation?')">
-                                                            <i class="fas fa-times"></i>
-                                                        </a>
+                                                    {% if reservation.status == 'Pending' %}
+                                                        <button type="button" class="btn btn-sm btn-success approve-btn" 
+                                                                data-reservation-id="{{ reservation.id }}"
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#approveReservationModal"
+                                                                title="Approve Reservation">
+                                                            <i class="fas fa-check"></i>
+                                                        </button>
+                                                        <form method="GET" action="{{ url_for('admin_reservations') }}" class="d-inline action-form" data-reservation-id="{{ reservation.id }}" data-action="deny">
+                                                            <input type="hidden" name="action" value="deny">
+                                                            <input type="hidden" name="reservation_id" value="{{ reservation.id }}">
+                                                            <button type="submit" class="btn btn-sm btn-danger action-btn" title="Deny Reservation">
+                                                                <i class="fas fa-times"></i>
+                                                            </button>
+                                                        </form>
+                                                    {% elif reservation.status == 'Active' %}
+                                                        <button type="button" class="btn btn-sm btn-primary edit-btn" 
+                                               data-reservation-id="{{ reservation.id }}"
+                                               data-bs-toggle="modal" 
+                                               data-bs-target="#editReservationModal"
+                                               title="Edit Reservation">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                                        <form method="GET" action="{{ url_for('admin_reservations') }}" class="d-inline action-form" data-reservation-id="{{ reservation.id }}" data-action="complete">
+                                                            <input type="hidden" name="action" value="complete">
+                                                            <input type="hidden" name="reservation_id" value="{{ reservation.id }}">
+                                                            <button type="submit" class="btn btn-sm btn-warning action-btn" title="Mark as Completed">
+                                                                <i class="fas fa-flag-checkered"></i>
+                                                            </button>
+                                                        </form>
+                                                        <form method="GET" action="{{ url_for('admin_reservations') }}" class="d-inline action-form" data-reservation-id="{{ reservation.id }}" data-action="cancel">
+                                                            <input type="hidden" name="action" value="cancel">
+                                                            <input type="hidden" name="reservation_id" value="{{ reservation.id }}">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger action-btn" title="Cancel Reservation">
+                                                                <i class="fas fa-ban"></i>
+                                                            </button>
+                                                        </form>
+                                                    {% elif reservation.status == 'Cancelled' %}
+                                                        <form method="GET" action="{{ url_for('admin_reservations') }}" class="d-inline action-form" data-reservation-id="{{ reservation.id }}" data-action="reactivate">
+                                                            <input type="hidden" name="action" value="reactivate">
+                                                            <input type="hidden" name="reservation_id" value="{{ reservation.id }}">
+                                                            <button type="submit" class="btn btn-sm btn-outline-success action-btn" title="Reactivate Reservation">
+                                                                <i class="fas fa-redo"></i>
+                                                            </button>
+                                                        </form>
+                                                        <button class="btn btn-sm btn-outline-secondary" disabled title="Locked">
+                                                            <i class="fas fa-lock"></i>
+                                                        </button>
                                                     {% else %}
-                                                        <button class="btn btn-sm btn-outline-secondary" disabled>
+                                                        <button class="btn btn-sm btn-outline-secondary" disabled title="No actions available">
                                                             <i class="fas fa-lock"></i>
                                                         </button>
                                                     {% endif %}
@@ -265,26 +378,64 @@
                         </div>
                         
                         <!-- Pagination -->
+                        {% if total_pages and total_pages > 1 %}
                         <nav aria-label="Reservations pagination" class="mt-4">
                             <ul class="pagination justify-content-center">
-                                <li class="page-item {% if page == 1 %}disabled{% endif %}">
-                                    <a class="page-link" href="{{ url_for('admin_reservations', page=page-1, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest')) if page > 1 else '#' }}">Previous</a>
+                                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin_reservations', page=page-1, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest'), per_page=request.args.get('per_page', '10')) if page > 1 else '#' }}">
+                                        <i class="fas fa-chevron-left"></i> Previous
+                                    </a>
                                 </li>
                                 
                                 {% for p in range(1, total_pages + 1) %}
-                                    <li class="page-item {% if p == page %}active{% endif %}">
-                                        <a class="page-link" href="{{ url_for('admin_reservations', page=p, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest')) }}">{{ p }}</a>
-                                    </li>
+                                    {% if p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                                        <li class="page-item {% if p == page %}active{% endif %}">
+                                            <a class="page-link" href="{{ url_for('admin_reservations', page=p, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest'), per_page=request.args.get('per_page', '10')) }}">{{ p }}</a>
+                                        </li>
+                                    {% elif p == 4 and page > 5 %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">...</span>
+                                        </li>
+                                    {% elif p == total_pages - 3 and page < total_pages - 4 %}
+                                        <li class="page-item disabled">
+                                            <span class="page-link">...</span>
+                                        </li>
+                                    {% endif %}
                                 {% endfor %}
                                 
-                                <li class="page-item {% if page == total_pages %}disabled{% endif %}">
-                                    <a class="page-link" href="{{ url_for('admin_reservations', page=page+1, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest')) if page < total_pages else '#' }}">Next</a>
+                                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                    <a class="page-link" href="{{ url_for('admin_reservations', page=page+1, search=request.args.get('search', ''), status=request.args.get('status', ''), slot_type=request.args.get('slot_type', ''), start_date=request.args.get('start_date', ''), end_date=request.args.get('end_date', ''), sort=request.args.get('sort', 'newest'), per_page=request.args.get('per_page', '10')) if page < total_pages else '#' }}">
+                                        Next <i class="fas fa-chevron-right"></i>
+                                    </a>
                                 </li>
                             </ul>
+                            <div class="text-center mt-2">
+                                <small class="text-muted">
+                                    Showing {{ ((page - 1) * (request.args.get('per_page', 10)|int)) + 1 }} to {{ ((page - 1) * (request.args.get('per_page', 10)|int)) + reservations|length }} of {{ total_reservations }} results
+                                </small>
+                            </div>
                         </nav>
+                        {% endif %}
                     {% else %}
-                        <div class="alert alert-info mb-0">
-                            No reservations found with the selected filters.
+                        <div class="alert alert-info mb-0 text-center">
+                            <i class="fas fa-info-circle fa-2x mb-3"></i>
+                            <h5>No Reservations Found</h5>
+                            <p class="mb-3">
+                                {% if request.args.get('search') or request.args.get('status') or request.args.get('slot_type') %}
+                                    No reservations match your current filters.
+                                {% else %}
+                                    There are no reservations in the system yet.
+                                {% endif %}
+                            </p>
+                            {% if request.args.get('search') or request.args.get('status') or request.args.get('slot_type') %}
+                                <a href="{{ url_for('admin_reservations') }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-times"></i> Clear Filters
+                                </a>
+                            {% else %}
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addReservationModal">
+                                    <i class="fas fa-plus"></i> Add First Reservation
+                                </button>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
@@ -506,6 +657,211 @@
         </div>
     </div>
 </div>
+
+<!-- Add Reservation Modal -->
+<div class="modal fade" id="addReservationModal" tabindex="-1" aria-labelledby="addReservationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addReservationModalLabel">Add New Reservation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="GET" action="{{ url_for('admin_reservations') }}" id="addReservationForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="user_id" class="form-label">Select User</label>
+                                <select class="form-select" id="user_id" name="user_id" required>
+                                    <option value="">Choose a user...</option>
+                                    <!-- This would be populated by your backend -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="slot_id" class="form-label">Select Parking Slot</label>
+                                <select class="form-select" id="slot_id" name="slot_id" required>
+                                    <option value="">Choose a slot...</option>
+                                    <!-- This would be populated by your backend -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_datetime" class="form-label">Start Date & Time</label>
+                                <input type="datetime-local" class="form-control" id="start_datetime" name="start_datetime" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="end_datetime" class="form-label">End Date & Time</label>
+                                <input type="datetime-local" class="form-control" id="end_datetime" name="end_datetime" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Initial Status</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="Pending">Pending</option>
+                            <option value="Active">Active</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any additional notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" name="action" value="add">
+                        <i class="fas fa-plus"></i> Add Reservation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Reservation Modal -->
+<div class="modal fade" id="editReservationModal" tabindex="-1" aria-labelledby="editReservationModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editReservationModalLabel">Edit Reservation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="GET" action="{{ url_for('admin_reservations') }}" id="editReservationForm">
+                <input type="hidden" name="action" value="edit">
+                <div class="modal-body">
+                    <input type="hidden" id="edit_reservation_id" name="id">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_user_id" class="form-label">User</label>
+                                <select class="form-select" id="edit_user_id" name="user_id" required>
+                                    <option value="">Choose a user...</option>
+                                    <!-- This would be populated by your backend -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_slot_id" class="form-label">Parking Slot</label>
+                                <select class="form-select" id="edit_slot_id" name="slot_id" required>
+                                    <option value="">Choose a slot...</option>
+                                    <!-- This would be populated by your backend -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_start_datetime" class="form-label">Start Date & Time</label>
+                                <input type="datetime-local" class="form-control" id="edit_start_datetime" name="start_datetime" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit_end_datetime" class="form-label">End Date & Time</label>
+                                <input type="datetime-local" class="form-control" id="edit_end_datetime" name="end_datetime" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_status" class="form-label">Status</label>
+                        <select class="form-select" id="edit_status" name="status" required>
+                            <option value="Pending">Pending</option>
+                            <option value="Active">Active</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="edit_notes" name="notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" name="action" value="edit">
+                        <i class="fas fa-save"></i> Update Reservation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Reservation Modal -->
+<div class="modal fade" id="approveReservationModal" tabindex="-1" aria-labelledby="approveReservationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="approveReservationModalLabel">
+                    <i class="fas fa-check-circle me-2"></i>Approve Reservation
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="approveReservationLoader">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Loading reservation details...</p>
+                </div>
+                <div id="approveReservationContent">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You are about to approve the following reservation:
+                    </div>
+                    
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>User:</strong> <span id="approve-user-name"></span></p>
+                                    <p><strong>Email:</strong> <span id="approve-user-email"></span></p>
+                                    <p><strong>Slot:</strong> <span id="approve-slot"></span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>From:</strong> <span id="approve-start-time"></span></p>
+                                    <p><strong>To:</strong> <span id="approve-end-time"></span></p>
+                                    <p><strong>Duration:</strong> <span id="approve-duration"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        <strong>Note:</strong> Approving this reservation will mark it as Active and notify the user via email.
+                    </div>
+                    
+                    <form method="GET" action="{{ url_for('admin_reservations') }}" id="approveReservationForm">
+                        <input type="hidden" name="action" value="approve">
+                        <input type="hidden" name="reservation_id" id="approve-reservation-id">
+                        
+                        <div class="mb-3">
+                            <label for="approvalNotes" class="form-label">Additional Notes (Optional)</label>
+                            <textarea class="form-control" id="approvalNotes" name="notes" rows="3" placeholder="Add any notes about this approval..."></textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmApproveBtn">
+                    <i class="fas fa-check me-1"></i> Confirm Approval
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ...existing modals... -->
 {% endblock %}
 
 {% block extra_css %}
@@ -530,6 +886,38 @@
         background-color: #dc3545;
         border-color: #dc3545;
     }
+    
+    .reservation-row:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .avatar {
+        font-weight: bold;
+        font-size: 14px;
+    }
+    
+    .btn-group .btn {
+        margin-right: 2px;
+    }
+    
+    .status-badge {
+        font-size: 0.75rem;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .toast-notification {
+        animation: slideIn 0.3s ease-out;
+    }
 </style>
 {% endblock %}
 
@@ -537,447 +925,398 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Toggle between Table and Calendar Views
-        const tableViewBtn = document.getElementById('table-view-btn');
-        const calendarViewBtn = document.getElementById('calendar-view-btn');
-        const tableView = document.getElementById('table-view');
-        const calendarView = document.getElementById('calendar-view');
-        let calendar = null;
+        // Initialize all functionality
+        initializeViewToggle();
+        initializeBulkActions();
+        initializeActionButtons();
+        initializeModal();
+        initializeCalendar();
+        initializeEditModal();
+        initializeActionForms();
+        initializeApprovalModal(); // Add this line to initialize the approve modal
+    
+        // Apply any pending status changes from localStorage
+        applyStoredStatusChanges();
         
-        tableViewBtn.addEventListener('click', function() {
-            tableViewBtn.classList.add('active');
-            calendarViewBtn.classList.remove('active');
-            tableView.style.display = 'flex';
-            calendarView.style.display = 'none';
-        });
+        // Check for flash messages and clear localStorage if needed
+        checkFlashMessages();
         
-        calendarViewBtn.addEventListener('click', function() {
-            calendarViewBtn.classList.add('active');
-            tableViewBtn.classList.remove('active');
-            calendarView.style.display = 'flex';
-            tableView.style.display = 'none';
+        // View Toggle Functionality
+        function initializeViewToggle() {
+            const tableViewBtn = document.getElementById('table-view-btn');
+            const calendarViewBtn = document.getElementById('calendar-view-btn');
+            const tableView = document.getElementById('table-view');
+            const calendarView = document.getElementById('calendar-view');
             
-            if (!calendar) {
-                initializeCalendar();
-            }
-        });
-        
-        // Initialize Calendar
-        function initializeCalendar() {
-            const calendarEl = document.getElementById('reservation-calendar');
-            calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-                },
-                events: '/api/admin/calendar-reservations',
-                eventClick: function(info) {
-                    showReservationDetails(info.event.id);
-                    
-                    // Open modal
-                    const modal = new bootstrap.Modal(document.getElementById('reservationDetailsModal'));
-                    modal.show();
-                },
-                eventClassNames: function(arg) {
-                    return [`fc-event-${arg.event.extendedProps.status.toLowerCase()}`];
-                },
-                eventContent: function(arg) {
-                    return {
-                        html: `
-                            <div class="fc-event-main-frame">
-                                <div class="fc-event-title-container">
-                                    <div class="fc-event-title">${arg.event.title}</div>
-                                </div>
-                                <div class="fc-event-time">${arg.timeText}</div>
-                            </div>
-                        `
-                    };
+            tableViewBtn?.addEventListener('click', function() {
+                tableViewBtn.classList.add('active');
+                calendarViewBtn.classList.remove('active');
+                tableView.style.display = 'flex';
+                calendarView.style.display = 'none';
+            });
+            
+            calendarViewBtn?.addEventListener('click', function() {
+                calendarViewBtn.classList.add('active');
+                tableViewBtn.classList.remove('active');
+                calendarView.style.display = 'flex';
+                tableView.style.display = 'none';
+                
+                if (window.calendar) {
+                    window.calendar.render();
                 }
             });
-            calendar.render();
         }
         
-        // Select All Checkbox for Bulk Actions
-        const selectAll = document.getElementById('selectAll');
-        const reservationCheckboxes = document.querySelectorAll('.reservation-select:not([disabled])');
-        const bulkApprove = document.getElementById('bulkApprove');
-        const bulkCancel = document.getElementById('bulkCancel');
-        
-        if (selectAll) {
-            selectAll.addEventListener('change', function() {
+        // Bulk Actions Functionality
+        function initializeBulkActions() {
+            const selectAll = document.getElementById('selectAll');
+            const reservationCheckboxes = document.querySelectorAll('.reservation-select:not([disabled])');
+            const bulkApprove = document.getElementById('bulkApprove');
+            const bulkDeny = document.getElementById('bulkDeny');
+            const bulkCancel = document.getElementById('bulkCancel');
+            const bulkComplete = document.getElementById('bulkComplete');
+            const selectionCount = document.getElementById('selectionCount');
+            
+            // Select All functionality
+            selectAll?.addEventListener('change', function() {
                 const isChecked = this.checked;
-                
                 reservationCheckboxes.forEach(checkbox => {
-                    checkbox.checked = isChecked;
+                    if (!checkbox.disabled) {
+                        checkbox.checked = isChecked;
+                    }
                 });
-                
                 updateBulkButtons();
             });
-        }
-        
-        // Individual checkbox change
-        reservationCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', updateBulkButtons);
-        });
-        
-        // Update bulk action buttons state
-        function updateBulkButtons() {
-            const selectedCount = Array.from(reservationCheckboxes).filter(cb => cb.checked).length;
             
-            bulkApprove.disabled = selectedCount === 0;
-            bulkCancel.disabled = selectedCount === 0;
+            // Individual checkbox change
+            reservationCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateBulkButtons);
+            });
             
-            bulkApprove.textContent = `Approve Selected (${selectedCount})`;
-            bulkCancel.textContent = `Cancel Selected (${selectedCount})`;
-        }
-        
-        // Bulk approve
-        if (bulkApprove) {
-            bulkApprove.addEventListener('click', function() {
-                if (confirm('Are you sure you want to approve all selected reservations?')) {
-                    const selectedIds = Array.from(reservationCheckboxes)
-                        .filter(cb => cb.checked)
-                        .map(cb => cb.value);
-                        
-                    if (selectedIds.length > 0) {
-                        processBulkAction('approve', selectedIds);
-                    }
+            // Update bulk button states
+            function updateBulkButtons() {
+                const selected = Array.from(reservationCheckboxes).filter(cb => cb.checked);
+                const selectedCount = selected.length;
+                const pendingCount = selected.filter(cb => cb.dataset.status === 'Pending').length;
+                const activeCount = selected.filter(cb => cb.dataset.status === 'Active').length;
+                
+                // Update selection counter
+                if (selectionCount) {
+                    selectionCount.textContent = `${selectedCount} selected`;
                 }
-            });
-        }
-        
-        // Bulk cancel
-        if (bulkCancel) {
-            bulkCancel.addEventListener('click', function() {
-                if (confirm('Are you sure you want to cancel all selected reservations?')) {
-                    const selectedIds = Array.from(reservationCheckboxes)
-                        .filter(cb => cb.checked)
-                        .map(cb => cb.value);
-                        
-                    if (selectedIds.length > 0) {
-                        processBulkAction('cancel', selectedIds);
-                    }
+                
+                // Update button states
+                if (bulkApprove) {
+                    bulkApprove.disabled = pendingCount === 0;
+                    bulkApprove.innerHTML = `<i class="fas fa-check"></i> Approve Selected (${pendingCount})`;
                 }
-            });
-        }
-        
-        // Process bulk action
-        function processBulkAction(action, ids) {
-            fetch('/api/admin/bulk-reservation-action', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: action,
-                    reservation_ids: ids
-                }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + data.error);
+                
+                if (bulkDeny) {
+                    bulkDeny.disabled = pendingCount === 0;
+                    bulkDeny.innerHTML = `<i class="fas fa-times"></i> Deny Selected (${pendingCount})`;
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while processing your request.');
-            });
+                
+                if (bulkCancel) {
+                    bulkCancel.disabled = activeCount === 0;
+                    bulkCancel.innerHTML = `<i class="fas fa-ban"></i> Cancel Selected (${activeCount})`;
+                }
+                
+                if (bulkComplete) {
+                    bulkComplete.disabled = activeCount === 0;
+                    bulkComplete.innerHTML = `<i class="fas fa-flag-checkered"></i> Complete Selected (${activeCount})`;
+                }
+            }
+            
+            // Bulk action handlers
+            bulkApprove?.addEventListener('click', () => handleBulkAction('approve'));
+            bulkDeny?.addEventListener('click', () => handleBulkAction('deny'));
+            bulkCancel?.addEventListener('click', () => handleBulkAction('cancel'));
+            bulkComplete?.addEventListener('click', () => handleBulkAction('complete'));
+            
+            function handleBulkAction(action) {
+                const selectedIds = Array.from(reservationCheckboxes)
+                    .filter(cb => cb.checked)
+                    .map(cb => cb.value);
+                    
+                if (selectedIds.length === 0) {
+                    showToast(`Please select at least one reservation to ${action}.`, 'warning');
+                    return;
+                }
+                
+                const actionText = action.charAt(0).toUpperCase() + action.slice(1);
+                const confirmMessage = `Are you sure you want to ${action} ${selectedIds.length} selected reservation(s)?`;
+                
+                if (confirm(confirmMessage)) {
+                    processBulkAction(action, selectedIds);
+                }
+            }
         }
         
-        // Reservation Details Modal
-        const reservationDetailsModal = document.getElementById('reservationDetailsModal');
-        if (reservationDetailsModal) {
-            reservationDetailsModal.addEventListener('show.bs.modal', function (event) {
+        // Individual Action Buttons - Remove JavaScript handlers since we're using HTML forms
+        function initializeActionButtons() {
+            // No longer needed - HTML forms handle the submission
+            console.log('Action buttons initialized - using HTML forms');
+        }
+        
+        // Modal functionality - Update to use HTML forms instead of JavaScript
+        function initializeModal() {
+            const modal = document.getElementById('reservationDetailsModal');
+            if (!modal) return;
+            
+            modal.addEventListener('show.bs.modal', function(event) {
                 const button = event.relatedTarget;
                 if (button) {
                     const reservationId = button.getAttribute('data-reservation-id');
                     showReservationDetails(reservationId);
                 }
             });
-        }
-        
-        function showReservationDetails(reservationId) {
-            document.getElementById('reservationDetailsContent').style.display = 'none';
-            document.getElementById('reservationDetailsLoader').style.display = 'block';
-                
-            // Fetch reservation details
-            fetch(`/api/admin/reservation-details/${reservationId}`)
-                .then(response => response.json())
-                .then(data => {
-                    updateReservationDetailsModal(data);
+            
+            // Modal action buttons - updated to use GET method instead of direct URLs
+            document.getElementById('detail-approve')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                const reservationId = document.getElementById('detail-id').textContent;
+                if (confirm('Are you sure you want to approve this reservation?')) {
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                    this.disabled = true;
+                    showToast('Approving reservation...', 'info');
                     
-                    // Show content
-                    document.getElementById('reservationDetailsLoader').style.display = 'none';
-                    document.getElementById('reservationDetailsContent').style.display = 'block';
-                })
-                .catch(error => {
-                    console.error('Error fetching reservation details:', error);
-                    document.getElementById('reservationDetailsLoader').innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-circle"></i> Error loading reservation details. Please try again.
-                        </div>
-                    `;
-                });
-        }
-        
-        function updateReservationDetailsModal(data) {
-            // Set basic reservation details
-            document.getElementById('detail-id').textContent = data.id;
-            document.getElementById('detail-created').textContent = data.created_at;
-            document.getElementById('detail-start').textContent = data.start_time;
-            document.getElementById('detail-end').textContent = data.end_time;
-            document.getElementById('detail-duration').textContent = data.duration;
-            document.getElementById('detail-slot').textContent = data.slot_number;
-            document.getElementById('detail-slot-type').textContent = data.slot_type;
-            
-            // Set user information
-            document.getElementById('detail-user-name').textContent = data.user_name;
-            document.getElementById('detail-user-email').textContent = data.user_email;
-            document.getElementById('detail-vehicle-type').textContent = data.vehicle_type;
-            document.getElementById('detail-user-link').href = `/admin/edit-user/${data.user_id}`;
-            
-            // Set user avatar
-            const avatarEl = document.getElementById('detail-user-avatar');
-            avatarEl.textContent = data.user_name.charAt(0).toUpperCase();
-            avatarEl.className = `avatar me-3 bg-${data.vehicle_type === 'Gasoline' ? 'primary' : data.vehicle_type === 'Diesel' ? 'danger' : 'success'} rounded-circle d-flex justify-content-center align-items-center`;
-            
-            // Set status badge
-            const statusBadge = document.getElementById('status-badge');
-            let badgeClass = '';
-            if (data.status === 'Pending') badgeClass = 'bg-warning';
-            else if (data.status === 'Active') badgeClass = 'bg-success';
-            else if (data.status === 'Completed') badgeClass = 'bg-dark';
-            else if (data.status === 'Cancelled') badgeClass = 'bg-danger';
-            
-            statusBadge.className = `py-3 px-4 d-inline-block rounded-pill mb-2 ${badgeClass} text-white`;
-            statusBadge.textContent = data.status;
-            
-            // Show/hide action sections based on status
-            document.getElementById('detail-actions-pending').style.display = 'none';
-            document.getElementById('detail-actions-active').style.display = 'none';
-            document.getElementById('detail-actions-completed').style.display = 'none';
-            document.getElementById('detail-actions-cancelled').style.display = 'none';
-            
-            if (data.status === 'Pending') {
-                document.getElementById('detail-actions-pending').style.display = 'block';
-            } else if (data.status === 'Active') {
-                document.getElementById('detail-actions-active').style.display = 'block';
-            } else if (data.status === 'Completed') {
-                document.getElementById('detail-actions-completed').style.display = 'block';
-            } else if (data.status === 'Cancelled') {
-                document.getElementById('detail-actions-cancelled').style.display = 'block';
-            }
-            
-            // Set up action button event listeners
-            document.getElementById('detail-approve').onclick = function() {
-                processReservationAction('activate', data.id);
-            };
-            
-            document.getElementById('detail-cancel').onclick = function() {
-                if(confirm('Are you sure you want to cancel this reservation?')) {
-                    processReservationAction('cancel', data.id);
+                    // Update the UI immediately
+                    updateReservationStatusUI(reservationId, 'approve');
+                    
+                    // Store the change
+                    storeStatusChange(reservationId, 'approve');
+                    
+                    // Show loading overlay
+                    showLoadingOverlay();
+                    
+                    // Use GET parameters instead
+                    const url = new URL(window.location.origin + "{{ url_for('admin_reservations') }}");
+                    url.searchParams.append('action', 'approve');
+                    url.searchParams.append('reservation_id', reservationId);
+                    
+                    // Navigate after a short delay
+                    setTimeout(() => {
+                        window.location.href = url.toString();
+                    }, 800);
                 }
-            };
+            });
             
-            document.getElementById('detail-complete').onclick = function() {
-                if(confirm('Are you sure you want to mark this reservation as completed?')) {
-                    processReservationAction('complete', data.id);
+            document.getElementById('detail-cancel')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                const reservationId = document.getElementById('detail-id').textContent;
+                if (confirm('Are you sure you want to deny this reservation?')) {
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                    this.disabled = true;
+                    showToast('Denying reservation...', 'info');
+                    
+                    updateReservationStatusUI(reservationId, 'deny');
+                    storeStatusChange(reservationId, 'deny');
+                    showLoadingOverlay();
+                    
+                    const url = new URL(window.location.origin + "{{ url_for('admin_reservations') }}");
+                    url.searchParams.append('action', 'deny');
+                    url.searchParams.append('reservation_id', reservationId);
+                    
+                    setTimeout(() => {
+                        window.location.href = url.toString();
+                    }, 800);
                 }
-            };
+            });
             
-            document.getElementById('detail-cancel-active').onclick = function() {
-                if(confirm('Are you sure you want to cancel this active reservation?')) {
-                    processReservationAction('cancel', data.id);
+            document.getElementById('detail-complete')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                const reservationId = document.getElementById('detail-id').textContent;
+                if (confirm('Are you sure you want to complete this reservation?')) {
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                    this.disabled = true;
+                    showToast('Completing reservation...', 'info');
+                    
+                    updateReservationStatusUI(reservationId, 'complete');
+                    storeStatusChange(reservationId, 'complete');
+                    showLoadingOverlay();
+                    
+                    const url = new URL(window.location.origin + "{{ url_for('admin_reservations') }}");
+                    url.searchParams.append('action', 'complete');
+                    url.searchParams.append('reservation_id', reservationId);
+                    
+                    setTimeout(() => {
+                        window.location.href = url.toString();
+                    }, 800);
                 }
-            };
+            });
             
-            document.getElementById('detail-reactivate').onclick = function() {
-                if(confirm('Are you sure you want to reactivate this cancelled reservation?')) {
-                    processReservationAction('reactivate', data.id);
+            document.getElementById('detail-cancel-active')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                const reservationId = document.getElementById('detail-id').textContent;
+                if (confirm('Are you sure you want to cancel this reservation?')) {
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                    this.disabled = true;
+                    showToast('Cancelling reservation...', 'info');
+                    
+                    updateReservationStatusUI(reservationId, 'cancel');
+                    storeStatusChange(reservationId, 'cancel');
+                    showLoadingOverlay();
+                    
+                    const url = new URL(window.location.origin + "{{ url_for('admin_reservations') }}");
+                    url.searchParams.append('action', 'cancel');
+                    url.searchParams.append('reservation_id', reservationId);
+                    
+                    setTimeout(() => {
+                        window.location.href = url.toString();
+                    }, 800);
                 }
-                return false;
-            };
+            });
             
-            document.getElementById('detail-edit-link').href = `/admin/edit-reservation/${data.id}`;
-        }
-        
-        function processReservationAction(action, id) {
-            fetch('/api/admin/reservation-action', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    action: action,
-                    reservation_id: id
-                }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.reload();
-                } else {
-                    alert('Error: ' + (data.error || 'Unknown error occurred'));
+            document.getElementById('detail-reactivate')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                const reservationId = document.getElementById('detail-id').textContent;
+                if (confirm('Are you sure you want to reactivate this reservation?')) {
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                    this.disabled = true;
+                    showToast('Reactivating reservation...', 'info');
+                    
+                    updateReservationStatusUI(reservationId, 'reactivate');
+                    storeStatusChange(reservationId, 'reactivate');
+                    showLoadingOverlay();
+                    
+                    const url = new URL(window.location.origin + "{{ url_for('admin_reservations') }}");
+                    url.searchParams.append('action', 'reactivate');
+                    url.searchParams.append('reservation_id', reservationId);
+                    
+                    setTimeout(() => {
+                        window.location.href = url.toString();
+                    }, 800);
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while processing your request.');
             });
         }
         
-        // Export functionality
-        document.getElementById('exportAll').addEventListener('change', function() {
-            if (this.checked) {
-                document.getElementById('exportFiltered').checked = false;
-                document.getElementById('exportSelected').checked = false;
-            }
-        });
-        
-        document.getElementById('exportFiltered').addEventListener('change', function() {
-            if (this.checked) {
-                document.getElementById('exportAll').checked = false;
-                document.getElementById('exportSelected').checked = false;
-            }
-        });
-        
-        document.getElementById('exportSelected').addEventListener('change', function() {
-            if (this.checked) {
-                document.getElementById('exportAll').checked = false;
-                document.getElementById('exportFiltered').checked = false;
-            }
-        });
-        
-        document.getElementById('exportBtn').addEventListener('click', function() {
-            // Get form data
-            const format = document.querySelector('input[name="exportFormat"]:checked').value;
-            const exportAll = document.getElementById('exportAll').checked;
-            const exportSelected = document.getElementById('exportSelected').checked;
-            
-            // Selected fields
-            const fields = [];
-            if (document.getElementById('fieldUser').checked) fields.push('user');
-            if (document.getElementById('fieldSlot').checked) fields.push('slot');
-            if (document.getElementById('fieldStart').checked) fields.push('start_time');
-            if (document.getElementById('fieldEnd').checked) fields.push('end_time');
-            if (document.getElementById('fieldStatus').checked) fields.push('status');
-            if (document.getElementById('fieldDuration').checked) fields.push('duration');
-            if (document.getElementById('fieldVehicleType').checked) fields.push('vehicle_type');
-            if (document.getElementById('fieldCreated').checked) fields.push('created_at');
-            
-            if (fields.length === 0) {
-                alert('Please select at least one field to export');
-                return;
-            }
-            
-            // Show loading spinner
-            const exportBtnOriginal = this.innerHTML;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting...';
-            this.disabled = true;
-            
-            // Construct URL with query params
-            let url = `/api/admin/export-reservations?format=${format}`;
-            
-            // Add export type
-            if (exportSelected) {
-                const selectedIds = Array.from(document.querySelectorAll('.reservation-select:checked'))
-                    .map(cb => cb.value);
+        // Initialize form handlers for action forms
+        function initializeActionForms() {
+            const actionForms = document.querySelectorAll('.action-form');
+            actionForms.forEach(form => {
+                form.addEventListener('submit', function(event) {
+                    event.preventDefault(); // Prevent form submission
                     
-                if (selectedIds.length === 0) {
-                    alert('Please select at least one reservation to export');
-                    this.innerHTML = exportBtnOriginal;
-                    this.disabled = false;
-                    return;
-                }
-                
-                url += `&type=selected&ids=${selectedIds.join(',')}`;
-            } else if (!exportAll) {
-                url += '&type=filtered';
-                
-                // Add current filters to URL
-                const currentUrl = new URL(window.location.href);
-                for (const [key, value] of currentUrl.searchParams.entries()) {
-                    if (key !== 'page') {
-                        url += `&${key}=${encodeURIComponent(value)}`;
-                    }
-                }
-            } else {
-                url += '&type=all';
-            }
-            
-            // Add selected fields
-            url += `&fields=${fields.join(',')}`;
-            
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
-            modal.hide();
-            
-            const btnRef = this;
-            
-            fetch(url, { method: 'GET' })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Export failed');
-                        });
+                    const reservationId = this.getAttribute('data-reservation-id');
+                    const action = this.getAttribute('data-action');
+                    const actionButton = this.querySelector('.action-btn');
+                    let confirmMessage = '';
+                    
+                    // Set appropriate confirmation message based on action
+                    switch(action) {
+                        case 'approve':
+                            confirmMessage = 'Are you sure you want to approve this reservation?';
+                            break;
+                        case 'deny':
+                            confirmMessage = 'Are you sure you want to deny this reservation?';
+                            break;
+                        case 'complete':
+                            confirmMessage = 'Are you sure you want to mark this reservation as completed?';
+                            break;
+                        case 'cancel':
+                            confirmMessage = 'Are you sure you want to cancel this reservation?';
+                            break;
+                        case 'reactivate':
+                            confirmMessage = 'Are you sure you want to reactivate this reservation?';
+                            break;
+                        default:
+                            confirmMessage = 'Are you sure you want to perform this action?';
                     }
                     
-                    const contentType = response.headers.get('content-type');
-                    
-                    // If it's JSON, it's likely an error response
-                    if (contentType && contentType.includes('application/json')) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Export failed');
-                        });
-                    }
-                    
-                    // For HTML content (PDF fallback), open in a new tab
-                    if (contentType && contentType.includes('text/html')) {
-                        // For PDF exports that fall back to HTML, open in a new tab with the same URL
-                        const newWindow = window.open(url, '_blank');
-                        if (!newWindow) {
-                            alert('Please allow popups for this site to view the PDF export');
-                        }
+                    if (confirm(confirmMessage)) {
+                        // Show processing UI feedback
+                        showProcessingUI(actionButton, reservationId, action);
                         
-                        // Reset button state
-                        btnRef.innerHTML = exportBtnOriginal;
-                        btnRef.disabled = false;
-                        return null; // Skip blob handling
+                        // Store change in localStorage for persistence
+                        storeStatusChange(reservationId, action);
+                        
+                        // Show loading overlay
+                        showLoadingOverlay();
+                        
+                        // Construct GET URL instead of using POST
+                        const url = new URL(window.location.origin + "{{ url_for('admin_reservations') }}");
+                        url.searchParams.append('action', action);
+                        url.searchParams.append('reservation_id', reservationId);
+                        
+                        // Redirect with a small delay to see the UI update
+                        setTimeout(() => {
+                            window.location.href = url.toString();
+                        }, 800);
                     }
-                    
-                    return response.blob();
-                })
-                .then(blob => {
-                    if (!blob) return; // Skip if we opened a new tab (for HTML)
-                    
-                    // Create download link and trigger download
-                    const extension = format === 'excel' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'csv';
-                    const filename = `reservations_export_${new Date().toISOString().split('T')[0]}.${extension}`;
-                    
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = URL.createObjectURL(blob);
-                    downloadLink.download = filename;
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
-                    document.body.removeChild(downloadLink);
-                    
-                    // Reset button
-                    btnRef.innerHTML = exportBtnOriginal;
-                    btnRef.disabled = false;
-                })
-                .catch(error => {
-                    console.error('Export error:', error);
-                    alert(`${error.message || 'Export failed'}. Try using CSV format or run the install_dependencies.py script to install the required packages.`);
-                    btnRef.innerHTML = exportBtnOriginal;
-                    btnRef.disabled = false;
                 });
-        });
-        
+            });
+        }
+
+        // Initialize approval modal functionality
+        const approveModal = document.getElementById('approveReservationModal');
+        if (approveModal) {
+            approveModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                if (!button) return;
+                
+                const reservationId = button.getAttribute('data-reservation-id');
+                
+                // Show loader initially
+                document.getElementById('approveReservationLoader').style.display = 'block';
+                document.getElementById('approveReservationContent').style.display = 'none';
+                
+                // Get reservation data from the row
+                const row = document.querySelector(`tr[data-reservation-id="${reservationId}"]`);
+                if (row) {
+                    setTimeout(() => {
+                        // Hide loader and show content
+                        document.getElementById('approveReservationLoader').style.display = 'none';
+                        document.getElementById('approveReservationContent').style.display = 'block';
+                        
+                        // Get reservation details from row
+                        const userName = row.querySelector('td:nth-child(3) div div')?.textContent || 'Unknown';
+                        const userEmail = row.querySelector('td:nth-child(3) small')?.textContent || 'No email';
+                        const slotNumber = row.querySelector('td:nth-child(4) .badge')?.textContent || 'Unknown';
+                        const startTime = row.querySelector('td:nth-child(5) div')?.textContent || 'N/A';
+                        const endTime = row.querySelector('td:nth-child(6) div')?.textContent || 'N/A';
+                        const duration = row.querySelector('td:nth-child(7)')?.textContent?.trim() || 'N/A';
+                        
+                        // Set values in the modal
+                        document.getElementById('approve-user-name').textContent = userName;
+                        document.getElementById('approve-user-email').textContent = userEmail;
+                        document.getElementById('approve-slot').textContent = slotNumber;
+                        document.getElementById('approve-start-time').textContent = startTime;
+                        document.getElementById('approve-end-time').textContent = endTime;
+                        document.getElementById('approve-duration').textContent = duration;
+                        document.getElementById('approve-reservation-id').value = reservationId;
+                    }, 500);
+                }
+            });
+            
+            // Handle form submission
+            document.getElementById('confirmApproveBtn')?.addEventListener('click', function() {
+                const form = document.getElementById('approveReservationForm');
+                const reservationId = document.getElementById('approve-reservation-id').value;
+                
+                // Show processing UI feedback
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                this.disabled = true;
+                showToast('Approving reservation...', 'info');
+                
+                // Update UI immediately
+                updateReservationStatusUI(reservationId, 'approve');
+                
+                // Store the status change in localStorage
+                storeStatusChange(reservationId, 'approve');
+                
+                // Show loading overlay
+                showLoadingOverlay();
+                
+                // Hide modal
+                const bootstrapModal = bootstrap.Modal.getInstance(approveModal);
+                bootstrapModal.hide();
+                
+                // Submit form after a short delay
+                setTimeout(() => {
+                    form.submit();
+                }, 800);
+            });
+        }
     });
 </script>
 {% endblock %}

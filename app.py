@@ -593,7 +593,8 @@ def admin_users():
     search = request.args.get('search', '')
     if search:
         query = query.filter(
-            or_(
+            or_
+            (
                 User.name.ilike(f'%{search}%'),
                 User.email.ilike(f'%{search}%')
             )
@@ -2509,3 +2510,33 @@ def api_get_reservation(id):
     except Exception as e:
         app.logger.error(f"Error fetching reservation details: {str(e)}")
         return jsonify({'error': f'An error occurred: {str(e)}'}), 500
+
+# Add this route to your app.py file to provide reservation details via API
+
+@app.route('/admin/api/reservations/<int:reservation_id>', methods=['GET'])
+@login_required
+@admin_required
+def admin_api_reservation_details(reservation_id):
+    reservation = Reservation.query.get_or_404(reservation_id)
+    
+    # Create a JSON response with reservation details
+    data = {
+        'id': reservation.id,
+        'start_time': reservation.start_time.strftime('%Y-%m-%dT%H:%M:%S'),
+        'end_time': reservation.end_time.strftime('%Y-%m-%dT%H:%M:%S'),
+        'status': reservation.status,
+        'created_at': reservation.created_at.strftime('%Y-%m-%d %H:%M') if reservation.created_at else None,
+        'user': {
+            'id': reservation.user.id,
+            'name': reservation.user.name,
+            'email': reservation.user.email,
+            'vehicle_type': reservation.user.vehicle_type
+        },
+        'parking_slot': {
+            'id': reservation.parking_slot.id,
+            'slot_number': reservation.parking_slot.slot_number,
+            'slot_type': reservation.parking_slot.slot_type
+        }
+    }
+    
+    return jsonify(data)
